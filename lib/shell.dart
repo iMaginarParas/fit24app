@@ -21,6 +21,7 @@ const kBlue    = Color(0xFF3B82F6);   // cool blue
 const kCoral   = Color(0xFFFF5757);   // red/coral
 const kPurple  = Color(0xFF8B5CF6);   // purple
 const kTeal    = Color(0xFF06B6D4);   // teal
+const kPink    = Color(0xFFFF007F);   // neon pink
 const kBorder  = Color(0xFF252D36);
 
 // Figma green gradient
@@ -156,30 +157,37 @@ class AvatarCircle extends StatelessWidget {
   final double size;
   final bool online;
   final String? imagePath;
+  final String? gender;
   const AvatarCircle(this.initials, this.color,
-      {super.key, this.size = 52, this.online = false, this.imagePath});
+      {super.key, this.size = 52, this.online = false, this.imagePath, this.gender});
 
   @override
   Widget build(BuildContext context) {
+    String? effectivePath = imagePath;
+    if (effectivePath == null) {
+      if (gender?.toLowerCase() == 'male') effectivePath = 'assets/images/male_avatar.png';
+      else if (gender?.toLowerCase() == 'female') effectivePath = 'assets/images/female_avatar.png';
+    }
+
     return Stack(children: [
       Container(
         width: size, height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: imagePath != null ? null : LinearGradient(
+          gradient: effectivePath != null ? null : LinearGradient(
             colors: [color, color.withOpacity(0.5)],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
-          image: imagePath != null ? DecorationImage(
-            image: (imagePath!.startsWith('http') 
-              ? NetworkImage(imagePath!) 
-              : AssetImage(imagePath!)) as ImageProvider,
+          image: effectivePath != null ? DecorationImage(
+            image: (effectivePath.startsWith('http') 
+              ? NetworkImage(effectivePath) 
+              : AssetImage(effectivePath)) as ImageProvider,
             fit: BoxFit.cover,
           ) : null,
           border: Border.all(color: color.withOpacity(0.5), width: 2),
           boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 12)],
         ),
-        child: imagePath == null ? Center(child: Text(initials,
+        child: effectivePath == null ? Center(child: Text(initials,
           style: const TextStyle(fontWeight: FontWeight.w800,
               color: Colors.white, fontSize: 16))) : null,
       ),

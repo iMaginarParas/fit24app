@@ -13,8 +13,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'api_service.dart';
 import 'auth_state.dart';
 import 'shell.dart';
 
@@ -63,7 +65,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   final PageController _page = PageController();
   int _step = 0;
-  static const _total = 10;
+  static const _total = 11;
   bool _saving = false;
   String? _error;
 
@@ -204,6 +206,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                 _FrequencyStep(data: _data, onChanged: setState),
                 _ExerciseTypeStep(data: _data, onChanged: setState),
                 _LocationStep(data: _data, onChanged: setState),
+                _PermissionsStep(onDone: _next),
               ],
             ),
           ),
@@ -1003,4 +1006,91 @@ class _MapGridPainter extends CustomPainter {
         Offset(size.width * 0.45, size.height), road);
   }
   @override bool shouldRepaint(_) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Step 11 — Permissions (Activity + Location)
+// ─────────────────────────────────────────────────────────────────────────────
+class _PermissionsStep extends StatefulWidget {
+  final VoidCallback onDone;
+  const _PermissionsStep({required this.onDone});
+  @override State<_PermissionsStep> createState() => _PermissionsStepState();
+}
+class _PermissionsStepState extends State<_PermissionsStep> {
+  bool _activity = false;
+  bool _location = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final a = await Permission.activityRecognition.status.isGranted;
+    final l = await Permission.location.status.isGranted;
+    if (mounted) setState(() { _activity = a; _location = l; });
+  }
+
+  Future<void> _request() async {
+    await [
+      Permission.activityRecognition,
+      Permission.location,
+    ].request();
+    await _check();
+    widget.onDone();
+  }
+
+  @override
+  Widget build(BuildContext context) => _StepShell(
+    question: 'Essential Permissions',
+    subtitle: 'Fit24 needs these to track your progress and rewards.',
+    child: Column(children: [
+      _permTile(
+        Icons.directions_run_rounded,
+        'Physical Activity',
+        'Used to count your steps and calculate Fit Points.',
+        _activity,
+      ),
+      const SizedBox(height: 16),
+      _permTile(
+        Icons.location_on_rounded,
+        'Location Access',
+        'Required for real-time GPS activity tracking.',
+        _location,
+      ),
+      const SizedBox(height: 32),
+      GreenBtn('Grant Permissions', onTap: _request),
+      const SizedBox(height: 12),
+      TextButton(
+        onPressed: widget.onDone,
+        child: Text('I\'ll do it later',
+            style: TextStyle(color: Colors.white.withOpacity(0.4))),
+      ),
+    ]),
+  );
+
+  Widget _permTile(IconData icon, String title, String desc, bool granted) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: kCard, borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: granted ? kGreen.withOpacity(0.3) : kBorder),
+    ),
+    child: Row(children: [
+      Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(
+          color: granted ? kGreen.withOpacity(0.12) : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: granted ? kGreen : Colors.white.withOpacity(0.3), size: 22),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+        Text(desc, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+      ])),
+      if (granted) const Icon(Icons.check_circle_rounded, color: kGreen, size: 20),
+    ]),
+  );
 }

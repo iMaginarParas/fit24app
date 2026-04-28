@@ -20,7 +20,9 @@ class MainActivity : FlutterActivity() {
     private val EVENTS = "com.fit24app/steps_stream"
     private var sink: EventChannel.EventSink? = null
     private lateinit var prefs: SharedPreferences
-    private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+    }
 
     private var hasSensor = false  // set in configureFlutterEngine, used in onRequestPermissionsResult
 
@@ -74,6 +76,12 @@ class MainActivity : FlutterActivity() {
                                 editor.putInt(StepCounterService.KEY_HISTORY + date, steps)
                         }
                         editor.apply()
+                        result.success(true)
+                    }
+                    
+                    "updateTodaySteps" -> {
+                        val steps = call.argument<Int>("steps") ?: 0
+                        StepCounterService.updateExternalSteps(this, steps)
                         result.success(true)
                     }
 

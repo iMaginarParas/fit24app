@@ -7,11 +7,14 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'voice_service.dart';
+import 'api_service.dart';
 
 enum ActivityType { walking, running, cycling }
 
 class TrackingState {
   final bool isTracking;
+  final bool isPaused;
   final ActivityType type;
   final List<LatLng> route;
   final double distance;
@@ -21,6 +24,7 @@ class TrackingState {
 
   TrackingState({
     this.isTracking = false,
+    this.isPaused = false,
     this.type = ActivityType.walking,
     this.route = const [],
     this.distance = 0,
@@ -31,6 +35,7 @@ class TrackingState {
 
   TrackingState copyWith({
     bool? isTracking,
+    bool? isPaused,
     ActivityType? type,
     List<LatLng>? route,
     double? distance,
@@ -40,6 +45,7 @@ class TrackingState {
   }) {
     return TrackingState(
       isTracking: isTracking ?? this.isTracking,
+      isPaused: isPaused ?? this.isPaused,
       type: type ?? this.type,
       route: route ?? this.route,
       distance: distance ?? this.distance,
@@ -63,11 +69,10 @@ class TrackingState {
   }
 
   int calculatePoints() {
-    final km = distance / 1000;
     switch (type) {
-      case ActivityType.walking: return (km * 50 + steps * 0.5).toInt();
-      case ActivityType.running: return (km * 100 + steps * 1.0).toInt();
-      case ActivityType.cycling: return (km * 30).toInt();
+      case ActivityType.walking: return steps; // 1 step = 1 point
+      case ActivityType.running: return distance.toInt(); // 1 meter = 1 point
+      case ActivityType.cycling: return distance.toInt(); // 1 meter = 1 point
     }
   }
 
@@ -82,7 +87,8 @@ class TrackingState {
 }
 
 class TrackingNotifier extends StateNotifier<TrackingState> {
-  TrackingNotifier() : super(TrackingState());
+  final VoiceService _voice;
+  TrackingNotifier(this._voice) : super(TrackingState());
 
   static const _method = MethodChannel('com.fit24app/steps');
   static const _event = EventChannel('com.fit24app/steps_stream');
@@ -93,19 +99,29 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   int _startSteps = 0;
 
   Future<void> startTracking(ActivityType type) async {
+    if (state.isTracking) return;
+    
     final permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       return;
     }
 
     state = TrackingState(isTracking: true, type: type);
+    await _voice.speak("Starting ${type.name} activity. Let's get moving!");
+
+    // Capture initial position immediately
+    try {
+      final startPos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final initialLatLng = LatLng(startPos.latitude, startPos.longitude);
+      state = state.copyWith(route: [initialLatLng]);
+    } catch (_) {}
 
     // Initial steps
     if (type != ActivityType.cycling) {
       try {
         _startSteps = await _method.invokeMethod<int>('getTodaySteps') ?? 0;
         _stepSub = _event.receiveBroadcastStream().listen((s) {
-          if (s is int) {
+          if (s is int && !state.isPaused) {
             state = state.copyWith(steps: (s - _startSteps).clamp(0, 1000000));
           }
         });
@@ -115,9 +131,11 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _sub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 3,
       ),
     ).listen((pos) {
+      if (state.isPaused) return;
+
       final latLng = LatLng(pos.latitude, pos.longitude);
       double newDistance = state.distance;
       
@@ -136,11 +154,29 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     });
 
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      state = state.copyWith(duration: state.duration + 1);
+      if (!state.isPaused) {
+        state = state.copyWith(duration: state.duration + 1);
+      }
     });
   }
 
+  void pauseTracking() {
+    if (state.isTracking && !state.isPaused) {
+      state = state.copyWith(isPaused: true);
+      _voice.speak("Activity paused.");
+    }
+  }
+
+  void resumeTracking() {
+    if (state.isTracking && state.isPaused) {
+      state = state.copyWith(isPaused: false);
+      _voice.speak("Resuming activity.");
+    }
+  }
+
   Future<void> stopTracking(WidgetRef ref) async {
+    await _voice.speak("Activity stopped. Well done on your progress!");
+
     _sub?.cancel();
     _stepSub?.cancel();
     _timer?.cancel();
@@ -170,7 +206,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       } catch (_) {}
     }
     
-    state = state.copyWith(isTracking: false);
+    state = state.copyWith(isTracking: false, isPaused: false);
   }
 
   int calculateCalories(double dist, ActivityType type) {
@@ -196,5 +232,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 }
 
 final trackingProvider = StateNotifierProvider<TrackingNotifier, TrackingState>((ref) {
-  return TrackingNotifier();
+  final voice = ref.watch(voiceServiceProvider);
+  return TrackingNotifier(voice);
 });
+

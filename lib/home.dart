@@ -8,17 +8,20 @@ import 'package:health/health.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
+import 'health_service.dart';
 import 'profile.dart';
+import 'points_provider.dart';
 import 'shell.dart';
 import 'tracking_page.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
 const _events = EventChannel('com.fit24app/steps_stream');
 
-// gamification
-int stepsToPoints(int s) => s * 5;
+// gamification: 1 step = 1 point
+int stepsToPoints(int s) => s;
 int levelFor(int s) => (s ~/ 1500) + 1;
 String rankFor(int lv) {
   if (lv < 3) return 'Rookie';
@@ -48,6 +51,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   int _disp = 0, _last = -1;
   Timer? _tick;
   Timer? _syncTimer;
+  Timer? _healthSyncTimer;
   int _lastSynced = 0;
   static const kGoal = 10000;
 
@@ -64,12 +68,20 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _spin = AnimationController(vsync: this,
         duration: const Duration(seconds: 10))..repeat();
     _checkPerm();
+    Future.microtask(() => ref.read(userPointsProvider.notifier).refresh());
   }
 
   Future<void> _checkPerm() async {
+    final prefs = await SharedPreferences.getInstance();
+    final requested = prefs.getBool('hc_requested') ?? false;
+
     if ((await Permission.activityRecognition.status).isGranted) {
       _startTracking();
-      setState(() => _s = _S.hc);
+      if (requested) {
+        setState(() => _s = _S.ready);
+      } else {
+        setState(() => _s = _S.hc);
+      }
     }
   }
 
@@ -92,6 +104,10 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _initSteps();
 
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) => _syncToBackend());
+    _healthSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) => HealthService.syncCurrentSteps());
+    
+    // Initial health sync
+    HealthService.syncCurrentSteps();
   }
 
   Future<void> _initSteps() async {
@@ -143,33 +159,22 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   Future<void> _enableHC() async {
     setState(() => _s = _S.loading);
-    try {
-      final h = Health();
-      await h.configure();
-      final ok = await h.requestAuthorization([HealthDataType.STEPS]);
-      if (ok) {
-        final now = DateTime.now(); final data = <String, int>{};
-        for (int i = 0; i <= 30; i++) {
-          final s = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-          final e = i == 0 ? now : s.add(const Duration(days: 1));
-          try {
-            final v = await h.getTotalStepsInInterval(s, e);
-            if (v != null && v > 0) data[DateFormat('yyyy-MM-dd').format(s)] = v;
-          } catch (_) {}
-        }
-        if (data.isNotEmpty) {
-          await _method.invokeMethod('saveHistory', {'data': data});
-          await _loadHist();
-          final tk = DateFormat('yyyy-MM-dd').format(now);
-          final hcT = data[tk] ?? 0;
-          if (hcT > _today && mounted) { setState(() => _today = hcT); _animTo(hcT); }
-        }
-      }
-    } catch (_) {}
+    final ok = await HealthService.connectAndSync();
+    if (ok) {
+       await _loadHist();
+       // Initial sync of today's steps if needed
+       _initSteps();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hc_requested', true);
     if (mounted) setState(() => _s = _S.ready);
   }
 
-  void _skipHC() => setState(() => _s = _S.ready);
+  void _skipHC() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hc_requested', true);
+    setState(() => _s = _S.ready);
+  }
 
   void _animTo(int t) {
     if (t == _last) return;
@@ -190,6 +195,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _pulse.dispose(); _spin.dispose();
     _tick?.cancel(); _sub?.cancel();
     _syncTimer?.cancel();
+    _healthSyncTimer?.cancel();
     super.dispose();
   }
 
@@ -361,24 +367,37 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   Widget _dashboard() {
     final pct = (_disp / kGoal).clamp(0.0, 1.0);
-    final pts = stepsToPoints(_today);
+    final pts = ref.watch(userPointsProvider);
     final lv = levelFor(_today);
     final week = _buildWeek();
     final best = week.map((d) => d.steps).fold(0, math.max);
 
+    final profileAsync = ref.watch(profileDataProvider);
+    final p = profileAsync.valueOrNull ?? {};
+    final name = p['name'] as String? ?? 'User';
+
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: SafeArea(bottom: false,
-              child: _topBar(lv, pts))),
-          SliverToBoxAdapter(child: _mainRingCard(pct)),
-          SliverToBoxAdapter(child: _metricsRow()),
-
-          SliverToBoxAdapter(child: _milestonesSection()),
-          const SliverToBoxAdapter(child: SizedBox(height: 110)),
-        ],
+      body: RefreshIndicator(
+        color: cCyan,
+        backgroundColor: const Color(0xFF1A1A1A),
+        strokeWidth: 3,
+        onRefresh: () async {
+          await _initSteps();
+          await ref.read(userPointsProvider.notifier).refresh();
+        },
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverToBoxAdapter(child: SafeArea(bottom: false,
+                child: _topBar(lv, pts, p))),
+            SliverToBoxAdapter(child: _mainRingCard(pct)),
+            SliverToBoxAdapter(child: _metricsRow()),
+  
+            SliverToBoxAdapter(child: _milestonesSection()),
+            const SliverToBoxAdapter(child: SizedBox(height: 110)),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackingPage())),
@@ -391,7 +410,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   // ── Top bar ───────────────────────────────────────────────────────────────
 
-  Widget _topBar(int lv, int pts) => Padding(
+  Widget _topBar(int lv, int pts, Map<String, dynamic> p) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
     child: Row(children: [
       Image.network(
@@ -422,12 +441,13 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       
       GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
-        child: const AvatarCircle(
-          'PG', 
+        child: AvatarCircle(
+          (p['name'] as String? ?? 'U').substring(0, 1).toUpperCase(), 
           cCyan, 
           size: 42, 
           online: true, 
-          imagePath: 'assets/images/user_profile.png',
+          imagePath: p['avatar_url'] as String?,
+          gender: p['gender'] as String?,
         ),
       ),
     ]),
@@ -692,7 +712,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           ]),
           const SizedBox(height: 18),
           Row(children: [
-            const Text('1 step = 5 pts', style: TextStyle(
+            const Text('1 step = 1 Fit24 Point', style: TextStyle(
                 fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
             const Spacer(),
             Text('$xp / 1,500 XP to Lv ${lv + 1}',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart' hide ActivityType;
+import 'active_session_page.dart';
 import 'tracking_service.dart';
 import 'activity.dart';
 import 'profile.dart';
@@ -145,7 +146,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
                       border: Border.all(color: Colors.white.withOpacity(0.15)),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Text('1000 steps = 1.25 coins ', style: TextStyle(
+                      const Text('1 meter = 1 Fit24 Point ', style: TextStyle(
                           color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
                       Icon(Icons.info_outline_rounded, size: 14, color: Colors.white.withOpacity(0.5)),
                     ]),
@@ -233,12 +234,12 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
         child: _subIcon(Icons.calendar_today_outlined, 'History'),
       ),
       GestureDetector(
-        onTap: () {
-          if (tracking.isTracking) {
-            ref.read(trackingProvider.notifier).stopTracking(ref);
-            Navigator.pop(context);
-          } else {
-            notifier.startTracking(tracking.type);
+        onTap: () async {
+          if (!tracking.isTracking) {
+            await notifier.startTracking(tracking.type);
+          }
+          if (mounted) {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionPage()));
           }
         },
         child: Container(
@@ -247,7 +248,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
             shape: BoxShape.circle,
             color: kTeal,
           ),
-          child: Center(child: Text(tracking.isTracking ? 'STOP' : 'GO', style: const TextStyle(
+          child: const Center(child: Text('GO', style: TextStyle(
               color: Colors.black, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1))),
         ),
       ),
@@ -257,6 +258,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
       ),
     ],
   );
+
 
   Widget _subIcon(IconData icon, String label) => Column(children: [
     Container(

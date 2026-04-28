@@ -38,6 +38,12 @@ dependencies:
   # Video Support
   video_player: ^2.8.1
 
+  # AI Voice Feedback
+  flutter_tts: ^4.0.2
+
+  # Image Picker
+  image_picker: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

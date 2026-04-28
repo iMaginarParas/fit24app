@@ -14,10 +14,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_service.dart';
 import 'auth_state.dart';
 import 'onboarding.dart';
 import 'slideshow.dart';
 import 'shell.dart';
+import 'config_provider.dart';
 
 // ── API base ──────────────────────────────────────────────────────────────────
 // API base (managed by ApiService)
@@ -76,7 +78,7 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       // Already onboarded — go straight to AppShell
       if (!mounted) return;
       setState(() => _route = _Route.home);
-      // Then refresh profile in background (no await — don't block UI)
+      // Then refresh profile and keys in background (no await — don't block UI)
       _refreshProfile(storedToken, prefs);
       return;
     }
@@ -84,8 +86,11 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     // ── Step 3: no local flag — ask backend if profile exists (network) ───────
     // This only runs on first-ever launch after login, or after cache clear.
     try {
+      // Fetch keys first
+      await ref.read(configProvider.notifier).fetchKeys();
+
       final res = await http.get(
-        Uri.parse('$_kBaseUrl/profile/me'),
+        Uri.parse('$kBaseUrl/profile/me'),
         headers: {'Authorization': 'Bearer $storedToken'},
       ).timeout(const Duration(seconds: 8));
 
@@ -113,8 +118,9 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   /// Refresh profile from backend in background without blocking navigation.
   Future<void> _refreshProfile(String token, SharedPreferences prefs) async {
     try {
+      await ref.read(configProvider.notifier).fetchKeys();
       final res = await http.get(
-        Uri.parse('$_kBaseUrl/profile/me'),
+        Uri.parse('$kBaseUrl/profile/me'),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {

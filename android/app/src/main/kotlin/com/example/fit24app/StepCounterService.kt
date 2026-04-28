@@ -21,7 +21,10 @@ class StepCounterService : Service(), SensorEventListener {
     private var stepSensor: Sensor? = null
     private var baselineSteps: Int = -1
     private var todaySteps: Int = 0
-    private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private var externalSteps: Int = 0
+    private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+    }
     private lateinit var prefs: android.content.SharedPreferences
 
     companion object {
@@ -41,6 +44,15 @@ class StepCounterService : Service(), SensorEventListener {
             } else {
                 ctx.startService(intent)
             }
+        }
+
+        /** Update the today's steps from external source like Health Connect */
+        fun updateExternalSteps(ctx: Context, steps: Int) {
+            val intent = Intent(ctx, StepCounterService::class.java).apply {
+                action = "UPDATE_STEPS"
+                putExtra("external_steps", steps)
+            }
+            ctx.startService(intent)
         }
     }
 
@@ -92,10 +104,12 @@ class StepCounterService : Service(), SensorEventListener {
             }
             baselineSteps = totalSteps
             todaySteps = 0
+            externalSteps = 0
         }
 
         if (baselineSteps < 0) baselineSteps = totalSteps
-        todaySteps = totalSteps - baselineSteps
+        val localSteps = totalSteps - baselineSteps
+        todaySteps = if (externalSteps > localSteps) externalSteps else localSteps
 
         // Persist
         prefs.edit().putInt(KEY_TODAY, todaySteps).apply()
@@ -113,8 +127,30 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
-        START_STICKY  // Android restarts this if killed
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "UPDATE_STEPS") {
+            val steps = intent.getIntExtra("external_steps", 0)
+            if (steps > externalSteps) {
+                externalSteps = steps
+                
+                // Recalculate todaySteps with new external baseline
+                val sManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+                val sCounter = sManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+                // We don't have the current sensor value here easily without registering,
+                // but todaySteps will be updated on the next sensor event anyway.
+                // For now, just update the notification if todaySteps increased.
+                val totalSteps = prefs.getInt(KEY_TODAY, 0) // fallback to last known
+                if (externalSteps > totalSteps) {
+                    todaySteps = externalSteps
+                    prefs.edit().putInt(KEY_TODAY, todaySteps).apply()
+                    eventSinkRef?.success(todaySteps)
+                    (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                        .notify(NOTIFICATION_ID, buildNotification(todaySteps))
+                }
+            }
+        }
+        return START_STICKY  // Android restarts this if killed
+    }
 
     override fun onDestroy() {
         sensorManager.unregisterListener(this)

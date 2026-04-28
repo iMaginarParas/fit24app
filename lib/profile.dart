@@ -1,11 +1,20 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'api_service.dart';
 import 'auth_state.dart';
+import 'health_service.dart';
 import 'onboarding.dart';
+import 'points_provider.dart';
+import 'profile_stats_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'shell.dart';
+import 'notifications_settings_page.dart';
 
 // API base (managed by ApiService)
 
@@ -41,60 +50,103 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _body(BuildContext ctx, WidgetRef ref, String phone, Map<String, dynamic> p) => CustomScrollView(
-    physics: const BouncingScrollPhysics(),
-    slivers: [
-      SliverToBoxAdapter(child: SafeArea(bottom: false, child: _topHeader(ctx, ref, p))),
-      SliverToBoxAdapter(child: _heroProfile(phone, p)),
-      SliverToBoxAdapter(child: _achievementsSection()),
-      SliverToBoxAdapter(child: _statsGrid()),
-      SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
-        _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
-          () => _openEditSheet(ctx, ref, p)),
-        _settingTile(Icons.notifications_none_rounded, kBlue, 'Notifications', 'Enabled', null),
-        _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', null),
-      ])),
-      SliverToBoxAdapter(child: _settingsGroup('Support & Feedback', [
-        _settingTile(Icons.help_outline_rounded, Colors.white38, 'Help Center', '', null),
-        _settingTile(Icons.star_border_rounded, kAmber, 'Rate Fit24', 'Version 1.0.2', null),
-        _settingTile(Icons.logout_rounded, kCoral, 'Sign Out', '', () => _signOut(ctx, ref)),
-      ])),
-      const SliverToBoxAdapter(child: SizedBox(height: 120)),
-    ],
+  Widget _body(BuildContext ctx, WidgetRef ref, String phone, Map<String, dynamic> p) => RefreshIndicator(
+    color: kTeal,
+    backgroundColor: const Color(0xFF1A1A1A),
+    strokeWidth: 3,
+    onRefresh: () async {
+      ref.invalidate(profileDataProvider);
+      ref.invalidate(profileStatsProvider);
+      await ref.read(profileDataProvider.future);
+      await ref.read(profileStatsProvider.future);
+    },
+    child: CustomScrollView(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      slivers: [
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyHeaderDelegate(
+            child: Container(
+              color: kBg.withOpacity(0.9),
+              padding: EdgeInsets.only(top: MediaQuery.of(ctx).padding.top),
+              child: _topHeader(ctx, ref, p),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(child: _heroProfile(ctx, ref, phone, p)),
+        SliverToBoxAdapter(child: _achievementsSection()),
+        SliverToBoxAdapter(child: _statsGrid(ref)),
+        SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
+          _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
+            () => _openEditSheet(ctx, ref, p)),
+          _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', null),
+        ])),
+        SliverToBoxAdapter(child: _settingsGroup('Permissions & Data', [
+          _settingTile(Icons.favorite_rounded, kPink, 'Health Connect', 'Sync your fitness history', 
+            () => _manageHealthConnect(ctx)),
+          _settingTile(Icons.notifications_none_rounded, kBlue, 'Notifications', 'Manage alerts', 
+            () => _manageNotifications(ctx)),
+        ])),
+        SliverToBoxAdapter(child: _settingsGroup('Support & Feedback', [
+          _settingTile(Icons.help_outline_rounded, Colors.white38, 'Help Center', '', null),
+          _settingTile(Icons.star_border_rounded, kAmber, 'Rate Fit24', 'Version 1.0.2', null),
+          _settingTile(Icons.logout_rounded, kCoral, 'Sign Out', '', () => _signOut(ctx, ref)),
+        ])),
+        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+      ],
+    ),
   );
 
   Widget _topHeader(BuildContext ctx, WidgetRef ref, Map<String, dynamic> p) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+    padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
     child: Row(children: [
       const Text('My Profile', style: TextStyle(
-          fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+          fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
       const Spacer(),
-      _circleBtn(Icons.settings_outlined, () => _openEditSheet(ctx, ref, p)),
+      _circleBtn(Icons.edit_note_rounded, () => _openEditSheet(ctx, ref, p)),
     ]),
   );
 
-  Widget _heroProfile(String phone, Map<String, dynamic> p) {
+  Widget _heroProfile(BuildContext ctx, WidgetRef ref, String phone, Map<String, dynamic> p) {
     final name = p['name'] as String? ?? 'Elite User';
     final city = p['city'] as String? ?? 'San Francisco, CA';
     
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 30, 24, 20),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       child: Column(children: [
-        Stack(alignment: Alignment.center, children: [
-          Container(
-            width: 110, height: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: kTeal.withOpacity(0.3), width: 2),
-              boxShadow: [BoxShadow(color: kTeal.withOpacity(0.15), blurRadius: 40, spreadRadius: 5)],
+        GestureDetector(
+          onTap: () => _pickAndUploadImage(ctx, ref),
+          child: Stack(alignment: Alignment.center, children: [
+            Container(
+              width: 110, height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: kTeal.withOpacity(0.3), width: 2),
+                boxShadow: [BoxShadow(color: kTeal.withOpacity(0.15), blurRadius: 40, spreadRadius: 5)],
+              ),
             ),
-          ),
-          const AvatarCircle('EU', kTeal, size: 90, online: true, 
-            imagePath: 'assets/images/user_profile.png'),
-        ]),
+            AvatarCircle(
+              name.substring(0, math.min(2, name.length)).toUpperCase(), 
+              kTeal, size: 90, online: true, 
+              imagePath: p['avatar_url'] as String?,
+              gender: p['gender'] as String?,
+            ),
+            Positioned(
+              bottom: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(color: kTeal, shape: BoxShape.circle),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.black, size: 16),
+              ),
+            ),
+          ]),
+        ),
         const SizedBox(height: 16),
-        Text(name, style: const TextStyle(
-            fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+        GestureDetector(
+          onTap: () => _openEditSheet(ctx, ref, p),
+          child: Text(name, style: const TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+        ),
         const SizedBox(height: 4),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(Icons.location_on_rounded, size: 14, color: Colors.white.withOpacity(0.4)),
@@ -179,16 +231,23 @@ class ProfilePage extends ConsumerWidget {
     ]),
   );
 
-  Widget _statsGrid() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-    child: Row(children: [
-      Expanded(child: _minimalStat('24.8k', 'Steps', kTeal)),
-      const SizedBox(width: 12),
-      Expanded(child: _minimalStat('1.2M', 'Points', kAmber)),
-      const SizedBox(width: 12),
-      Expanded(child: _minimalStat('12', 'Sessions', kBlue)),
-    ]),
-  );
+  Widget _statsGrid(WidgetRef ref) {
+    final statsAsync = ref.watch(profileStatsProvider);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: statsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
+        error: (_, __) => const SizedBox(),
+        data: (s) => Row(children: [
+          Expanded(child: _minimalStat(NumberFormat.compact().format(s.totalSteps), 'Steps', kTeal)),
+          const SizedBox(width: 12),
+          Expanded(child: _minimalStat(NumberFormat.compact().format(s.totalPoints), 'Points', kAmber)),
+          const SizedBox(width: 12),
+          Expanded(child: _minimalStat(s.totalSessions.toString(), 'Sessions', kBlue)),
+        ]),
+      ),
+    );
+  }
 
   Widget _minimalStat(String val, String label, Color color) => Container(
     padding: const EdgeInsets.symmetric(vertical: 20),
@@ -243,6 +302,61 @@ class ProfilePage extends ConsumerWidget {
         fontSize: 12, color: Colors.white.withOpacity(0.3))) : null,
     trailing: Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
   );
+
+  Future<void> _manageHealthConnect(BuildContext ctx) async {
+    final authorized = await HealthService.isAuthorized();
+    if (authorized) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('Health Connect is already connected!'), backgroundColor: kTeal),
+        );
+      }
+      return;
+    }
+
+    final ok = await HealthService.connectAndSync();
+    if (ok && ctx.mounted) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('Health Connect synced successfully!'), backgroundColor: kTeal),
+      );
+    }
+  }
+
+  Future<void> _manageNotifications(BuildContext ctx) async {
+    Navigator.push(ctx, MaterialPageRoute(builder: (_) => const NotificationsSettingsPage()));
+  }
+
+  Future<void> _pickAndUploadImage(BuildContext ctx, WidgetRef ref) async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      
+      if (image == null) return;
+      
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('Uploading profile picture...'), duration: Duration(seconds: 2)),
+        );
+      }
+      
+      final api = ref.read(apiServiceProvider);
+      await api.uploadAvatar(image.path);
+      
+      ref.invalidate(profileDataProvider);
+      
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated!'), backgroundColor: kTeal),
+        );
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: kCoral),
+        );
+      }
+    }
+  }
 
   Widget _circleBtn(IconData icon, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
@@ -365,6 +479,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
           Expanded(child: ListView(controller: ctrl, padding: const EdgeInsets.symmetric(horizontal: 24), children: [
             _field('FULL NAME', _name, (v) => _name = v),
             _field('CITY', _city, (v) => _city = v),
+            const SizedBox(height: 10),
+            _genderSelector(),
             const SizedBox(height: 20),
             _statEdit('Age', '$_age', () => setState(() => _age--), () => setState(() => _age++)),
             _statEdit('Weight (kg)', _weight.toStringAsFixed(1), () => setState(() => _weight -= 0.5), () => setState(() => _weight += 0.5)),
@@ -402,6 +518,38 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
     const SizedBox(height: 16),
   ]);
 
+  Widget _genderSelector() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text('GENDER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.3), letterSpacing: 1.5)),
+    const SizedBox(height: 12),
+    Row(children: [
+      Expanded(child: _genderBtn('Male', Icons.male_rounded, kBlue)),
+      const SizedBox(width: 12),
+      Expanded(child: _genderBtn('Female', Icons.female_rounded, kPink)),
+    ]),
+  ]);
+
+  Widget _genderBtn(String g, IconData i, Color c) {
+    final sel = _gender.toLowerCase() == g.toLowerCase();
+    return GestureDetector(
+      onTap: () => setState(() => _gender = g),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: sel ? c.withOpacity(0.15) : kCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: sel ? c.withOpacity(0.5) : Colors.white10),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(i, color: sel ? c : Colors.white.withOpacity(0.3), size: 18),
+          const SizedBox(width: 8),
+          Text(g, style: TextStyle(color: sel ? Colors.white : Colors.white.withOpacity(0.3), fontWeight: FontWeight.w700)),
+        ]),
+      ),
+    );
+  }
+
+
   Widget _statEdit(String l, String v, VoidCallback onMin, VoidCallback onPlus) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: Row(children: [
@@ -423,4 +571,22 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
       child: Icon(i, color: Colors.white, size: 16),
     ),
   );
+}
+
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  _StickyHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 80;
+  @override
+  double get maxExtent => 80;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(_StickyHeaderDelegate oldDelegate) => false;
 }

@@ -6,6 +6,8 @@ import 'api_service.dart';
 import 'challenges_page.dart';
 import 'rewards_page.dart';
 import 'shell.dart';
+import 'points_provider.dart';
+import 'step_provider.dart';
 
 class EarnPage extends ConsumerStatefulWidget {
   const EarnPage({super.key});
@@ -15,8 +17,9 @@ class EarnPage extends ConsumerStatefulWidget {
 
 class _EP extends ConsumerState<EarnPage> {
   bool _loading = true;
-  int _today = 0;
-  int _weekTotal = 0;
+  int _todayPoints = 0;
+  int _totalPoints = 0;
+  int _todaySteps = 0;
 
   @override
   void initState() {
@@ -28,12 +31,14 @@ class _EP extends ConsumerState<EarnPage> {
     setState(() => _loading = true);
     try {
       final api = ref.read(apiServiceProvider);
+      await ref.read(userPointsProvider.notifier).refresh();
       final t = await api.getTodaySteps();
       final h = await api.getStepHistory(days: 7);
       if (mounted) {
         setState(() {
-          _today = t['steps'] ?? 0;
-          _weekTotal = h['total_steps'] ?? 0;
+          _todayPoints = t['fit_points'] ?? 0;
+          _todaySteps = t['steps'] ?? 0;
+          _totalPoints = h['total_fit_points'] ?? 0;
           _loading = false;
         });
       }
@@ -43,7 +48,11 @@ class _EP extends ConsumerState<EarnPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final totalPoints = ref.watch(userPointsProvider);
+    final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? _todaySteps;
+    
+    return Scaffold(
     backgroundColor: kBg,
     body: Stack(
       children: [
@@ -59,26 +68,33 @@ class _EP extends ConsumerState<EarnPage> {
          if (_loading)
           const Center(child: CircularProgressIndicator(color: kGreen))
         else
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-              SliverToBoxAdapter(child: _balanceCard()),
-              SliverToBoxAdapter(child: _rateCards()),
-              SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
-              })),
-              SliverToBoxAdapter(child: _challengesList()),
-              SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
-              })),
-              SliverToBoxAdapter(child: _redeemRow()),
-              const SliverToBoxAdapter(child: SizedBox(height: 110)),
-            ],
+          RefreshIndicator(
+            color: kGreen,
+            backgroundColor: const Color(0xFF1A1A1A),
+            strokeWidth: 3,
+            onRefresh: _loadData,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                SliverToBoxAdapter(child: _balanceCard(totalPoints, liveSteps)),
+                SliverToBoxAdapter(child: _rateCards()),
+                SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
+                })),
+                SliverToBoxAdapter(child: _challengesList(liveSteps)),
+                SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+                })),
+                SliverToBoxAdapter(child: _redeemRow()),
+                const SliverToBoxAdapter(child: SizedBox(height: 110)),
+              ],
+            ),
           ),
       ],
     ),
   );
+  }
 
   Widget _header() => Padding(
     padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -106,7 +122,7 @@ class _EP extends ConsumerState<EarnPage> {
     ]),
   );
 
-  Widget _balanceCard() => Padding(
+  Widget _balanceCard(int points, int liveSteps) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Container(
       padding: const EdgeInsets.all(22),
@@ -147,16 +163,16 @@ class _EP extends ConsumerState<EarnPage> {
                Text('FIT POINTS', style: TextStyle(
                   fontSize: 10, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 2, fontWeight: FontWeight.w700)),
-              Text(NumberFormat('#,###').format(_weekTotal * 5), style: const TextStyle(
+              Text(NumberFormat('#,###').format(points), style: const TextStyle(
                   fontSize: 36, fontWeight: FontWeight.w900,
                   color: Colors.white, letterSpacing: -1.5, height: 1.1)),
             ]),
             const Spacer(),
             // Mini circle stat
              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              _smallBadge('+${NumberFormat('#,###').format(_today * 5)}', kGreen, 'today'),
+              _smallBadge('+${NumberFormat('#,###').format(liveSteps)}', kGreen, 'today'),
               const SizedBox(height: 6),
-              _smallBadge('+850', kAmber, 'bonus'),
+              _smallBadge('+0', kAmber, 'bonus'),
             ]),
           ]),
           const SizedBox(height: 20),
@@ -164,7 +180,7 @@ class _EP extends ConsumerState<EarnPage> {
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('Next milestone: 15,000 pts', style: TextStyle(
                 fontSize: 11, color: Colors.white.withOpacity(0.4))),
-            const Text('83%', style: TextStyle(
+            Text('${((points / 15000).clamp(0.0, 1.0) * 100).toInt()}%', style: const TextStyle(
                 fontSize: 11, color: kGreen, fontWeight: FontWeight.w700)),
           ]),
           const SizedBox(height: 7),
@@ -172,7 +188,7 @@ class _EP extends ConsumerState<EarnPage> {
             borderRadius: BorderRadius.circular(100),
             child: Stack(children: [
               Container(height: 8, color: Colors.white.withOpacity(0.08)),
-              FractionallySizedBox(widthFactor: 0.83,
+              FractionallySizedBox(widthFactor: (points / 15000).clamp(0.0, 1.0),
                 child: Container(height: 8, decoration: BoxDecoration(
                   gradient: kGreenGrad,
                   borderRadius: BorderRadius.circular(100),
@@ -214,7 +230,7 @@ class _EP extends ConsumerState<EarnPage> {
   Widget _rateCards() => Padding(
     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Row(children: [
-      Expanded(child: _rateTile('Per Step', '5 pts', kGreen, Icons.directions_walk_rounded)),
+      Expanded(child: _rateTile('Per Step', '1 pt', kGreen, Icons.directions_walk_rounded)),
       const SizedBox(width: 10),
       Expanded(child: _rateTile('Goal Bonus', '+50K', kAmber, Icons.flag_rounded)),
       const SizedBox(width: 10),
@@ -245,10 +261,10 @@ class _EP extends ConsumerState<EarnPage> {
       ]),
     );
 
-   Widget _challengesList() {
-    final dailyProg = (_today / 10000).clamp(0.0, 1.0);
-    final weekProg = (_weekTotal / 70000).clamp(0.0, 1.0);
-    final earlyProg = (_today / 2000).clamp(0.0, 1.0); // Mocked as morning steps
+   Widget _challengesList(int currentSteps) {
+    final dailyProg = (currentSteps / 10000).clamp(0.0, 1.0);
+    final weekProg = (_totalPoints / 70000).clamp(0.0, 1.0); // Assuming total points for weekly
+    final earlyProg = (currentSteps / 2000).clamp(0.0, 1.0); // Mocked as morning steps
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),

@@ -24,7 +24,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   List<Map<String, dynamic>> _sessions = [];
   int? _selIdx;
   int _totalSteps = 0;
-  ActivityType _selectedType = ActivityType.running;
+  ActivityType _selectedType = ActivityType.walking;
 
   @override
   void initState() {

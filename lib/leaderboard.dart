@@ -55,26 +55,32 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
           Positioned.fill(
             child: Container(color: Colors.black.withOpacity(0.7)),
           ),
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-              if (_loading)
-                const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: kGreen)))
-              else ...[
-                SliverToBoxAdapter(child: _topThree()),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => _listEntry(i + 3),
-                      childCount: _entries.length > 3 ? _entries.length - 3 : 0,
+          RefreshIndicator(
+            color: kGreen,
+            backgroundColor: const Color(0xFF1A1A1A),
+            strokeWidth: 3,
+            onRefresh: _loadData,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                if (_loading)
+                  const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: kGreen)))
+                else ...[
+                  SliverToBoxAdapter(child: _topThree()),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => _listEntry(i + 3),
+                        childCount: _entries.length > 3 ? _entries.length - 3 : 0,
+                      ),
                     ),
                   ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
