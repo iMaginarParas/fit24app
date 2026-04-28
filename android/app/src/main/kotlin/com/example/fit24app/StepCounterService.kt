@@ -22,6 +22,7 @@ class StepCounterService : Service(), SensorEventListener {
     private var baselineSteps: Int = -1
     private var todaySteps: Int = 0
     private var externalSteps: Int = 0
+    private var lastSavedDate: String = ""
     private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("Asia/Kolkata")
     }
@@ -61,13 +62,15 @@ class StepCounterService : Service(), SensorEventListener {
         prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         createNotificationChannel()
 
-        val notification = buildNotification(prefs.getInt(KEY_TODAY, 0))
+        // Load persisted state
+        todaySteps = prefs.getInt(KEY_TODAY, 0)
+        baselineSteps = prefs.getInt("baseline_steps", -1)
+        externalSteps = prefs.getInt("external_steps", 0)
+        lastSavedDate = prefs.getString("last_date", "") ?: ""
+
+        val notification = buildNotification(todaySteps)
 
         // Use FOREGROUND_SERVICE_TYPE_HEALTH to match the manifest declaration
-        // of foregroundServiceType="health". Android 14+ requires the type passed
-        // here to be a subset of what is declared in AndroidManifest.xml.
-        // ACTIVITY_RECOGNITION permission is already declared in the manifest and
-        // will be requested at runtime before this service is started.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
@@ -92,12 +95,13 @@ class StepCounterService : Service(), SensorEventListener {
 
         // Reset baseline at midnight
         val today = fmt.format(Date())
-        val savedDate = prefs.getString("last_date", "") ?: ""
-        if (savedDate != today) {
-            if (savedDate.isNotEmpty()) {
+        if (lastSavedDate != today) {
+            if (lastSavedDate.isNotEmpty()) {
                 prefs.edit()
-                    .putInt(KEY_HISTORY + savedDate, todaySteps)
+                    .putInt(KEY_HISTORY + lastSavedDate, todaySteps)
                     .putString("last_date", today)
+                    .putInt("baseline_steps", totalSteps) // New baseline for new day
+                    .putInt("external_steps", 0)
                     .apply()
             } else {
                 prefs.edit().putString("last_date", today).apply()
@@ -105,10 +109,16 @@ class StepCounterService : Service(), SensorEventListener {
             baselineSteps = totalSteps
             todaySteps = 0
             externalSteps = 0
+            lastSavedDate = today
         }
 
-        if (baselineSteps < 0) baselineSteps = totalSteps
-        val localSteps = totalSteps - baselineSteps
+        if (baselineSteps < 0) {
+            // If we have todaySteps from before restart, calculate what baseline should be
+            baselineSteps = totalSteps - (todaySteps - externalSteps)
+            prefs.edit().putInt("baseline_steps", baselineSteps).apply()
+        }
+        
+        val localSteps = (totalSteps - baselineSteps).coerceAtLeast(0)
         todaySteps = if (externalSteps > localSteps) externalSteps else localSteps
 
         // Persist
@@ -117,8 +127,11 @@ class StepCounterService : Service(), SensorEventListener {
         // Push to Flutter EventChannel
         eventSinkRef?.success(todaySteps)
 
-        // Broadcast for MainActivity BroadcastReceiver
-        sendBroadcast(Intent("com.fit24app.STEPS").putExtra("steps", todaySteps))
+        // Broadcast for MainActivity BroadcastReceiver - explicit intent for reliability
+        val intent = Intent("com.fit24app.STEPS")
+        intent.putExtra("steps", todaySteps)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
 
         // Update notification text
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -142,8 +155,17 @@ class StepCounterService : Service(), SensorEventListener {
                 val totalSteps = prefs.getInt(KEY_TODAY, 0) // fallback to last known
                 if (externalSteps > totalSteps) {
                     todaySteps = externalSteps
-                    prefs.edit().putInt(KEY_TODAY, todaySteps).apply()
+                    prefs.edit()
+                        .putInt(KEY_TODAY, todaySteps)
+                        .putInt("external_steps", externalSteps)
+                        .apply()
                     eventSinkRef?.success(todaySteps)
+                    
+                    val bIntent = Intent("com.fit24app.STEPS")
+                    bIntent.putExtra("steps", todaySteps)
+                    bIntent.setPackage(packageName)
+                    sendBroadcast(bIntent)
+
                     (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                         .notify(NOTIFICATION_ID, buildNotification(todaySteps))
                 }
