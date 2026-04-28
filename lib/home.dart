@@ -383,8 +383,25 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
         backgroundColor: const Color(0xFF1A1A1A),
         strokeWidth: 3,
         onRefresh: () async {
+          // 1. Force sync local steps to backend first
+          try {
+            final localSteps = await _method.invokeMethod<int>('getTodaySteps') ?? 0;
+            if (localSteps > 0) {
+              final api = ref.read(apiServiceProvider);
+              await api.syncSteps(localSteps);
+              _lastSynced = localSteps;
+            }
+          } catch (_) {}
+
+          // 2. Invalidate global providers so they fetch fresh data
+          ref.invalidate(profileDataProvider);
+          ref.invalidate(profileStatsProvider);
+          ref.invalidate(userPointsProvider);
+
+          // 3. Reload local state
           await _initSteps();
           await ref.read(userPointsProvider.notifier).refresh();
+          await ref.read(profileStatsProvider.future);
         },
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),

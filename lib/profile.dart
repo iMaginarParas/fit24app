@@ -55,8 +55,19 @@ class ProfilePage extends ConsumerWidget {
     backgroundColor: const Color(0xFF1A1A1A),
     strokeWidth: 3,
     onRefresh: () async {
+      // 1. Sync steps to backend
+      try {
+        const method = MethodChannel('com.fit24app/steps');
+        final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+        if (localSteps > 0) {
+          await ref.read(apiServiceProvider).syncSteps(localSteps);
+        }
+      } catch (_) {}
+
+      // 2. Invalidate and reload
       ref.invalidate(profileDataProvider);
       ref.invalidate(profileStatsProvider);
+      ref.invalidate(userPointsProvider);
       await ref.read(profileDataProvider.future);
       await ref.read(profileStatsProvider.future);
     },

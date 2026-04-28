@@ -111,22 +111,39 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           if (_loading)
             const Center(child: CircularProgressIndicator(color: kGreen))
           else
-            CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                SliverToBoxAdapter(child: _periodTabs()),
-                SliverToBoxAdapter(child: _mainStepCard()),
-                SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
-                SliverToBoxAdapter(child: _modeTotals()),
-                SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
-                SliverToBoxAdapter(child: _barChart()),
-                SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
-                SliverToBoxAdapter(child: _sessionsList()),
-                SliverToBoxAdapter(child: SectionHeader('Activity Log')),
-                SliverToBoxAdapter(child: _logList()),
-                const SliverToBoxAdapter(child: SizedBox(height: 110)),
-              ],
+            RefreshIndicator(
+              color: kGreen,
+              backgroundColor: kCard,
+              onRefresh: () async {
+                // Sync steps first
+                try {
+                  const method = MethodChannel('com.fit24app/steps');
+                  final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+                  if (localSteps > 0) {
+                    await ref.read(apiServiceProvider).syncSteps(localSteps);
+                  }
+                } catch (_) {}
+                
+                await _loadData();
+                await _loadSessions();
+              },
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                  SliverToBoxAdapter(child: _periodTabs()),
+                  SliverToBoxAdapter(child: _mainStepCard()),
+                  SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
+                  SliverToBoxAdapter(child: _modeTotals()),
+                  SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
+                  SliverToBoxAdapter(child: _barChart()),
+                  SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
+                  SliverToBoxAdapter(child: _sessionsList()),
+                  SliverToBoxAdapter(child: SectionHeader('Activity Log')),
+                  SliverToBoxAdapter(child: _logList()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                ],
+              ),
             ),
         ],
       ),
