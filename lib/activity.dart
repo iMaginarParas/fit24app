@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -114,10 +115,10 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             RefreshIndicator(
               color: kGreen,
               backgroundColor: kCard,
-              onRefresh: () async {
+            onRefresh: () async {
                 // Sync steps first
                 try {
-                  const method = MethodChannel('com.fit24app/steps');
+                  final method = MethodChannel('com.fit24app/steps');
                   final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
                   if (localSteps > 0) {
                     await ref.read(apiServiceProvider).syncSteps(localSteps);

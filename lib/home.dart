@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'health_service.dart';
 import 'profile.dart';
+import 'profile_stats_provider.dart';
 import 'points_provider.dart';
 import 'shell.dart';
 import 'tracking_page.dart';

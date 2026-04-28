@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -57,7 +58,7 @@ class ProfilePage extends ConsumerWidget {
     onRefresh: () async {
       // 1. Sync steps to backend
       try {
-        const method = MethodChannel('com.fit24app/steps');
+        final method = MethodChannel('com.fit24app/steps');
         final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
         if (localSteps > 0) {
           await ref.read(apiServiceProvider).syncSteps(localSteps);
