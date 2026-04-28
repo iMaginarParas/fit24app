@@ -4,6 +4,7 @@ import 'home.dart';
 import 'earn.dart';
 import 'activity.dart';
 import 'profile.dart';
+import 'tracking_page.dart';
 
 // ── TOKENS ───────────────────────────────────────────────────────────────────
 const kBg      = Color(0xFF0A0D0F);
@@ -76,37 +77,70 @@ class _Nav extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Row(
-                children: List.generate(4, (i) {
-                  final sel = current == i;
-                  return Expanded(child: GestureDetector(
-                    onTap: () => onTap(i),
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: sel ? BoxDecoration(
-                        color: kGreen.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: kGreen.withOpacity(0.4), width: 1),
-                      ) : null,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(sel ? items[i].$1 : items[i].$2,
-                          size: 22,
-                          color: sel ? kGreen : Colors.white.withOpacity(0.3)),
-                        const SizedBox(height: 4),
-                        Text(items[i].$3, style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
-                          color: sel ? kGreen : Colors.white.withOpacity(0.3),
-                        )),
-                      ]),
-                    ),
-                  ));
-                }),
+                children: [
+                  _navItem(0, items[0], current, onTap),
+                  _navItem(1, items[1], current, onTap),
+                  _centerLogoBtn(context),
+                  _navItem(2, items[2], current, onTap),
+                  _navItem(3, items[3], current, onTap),
+                ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(int i, (IconData, IconData, String) item, int current, ValueChanged<int> onTap) {
+    final sel = current == i;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => onTap(i),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: sel ? BoxDecoration(
+            color: kGreen.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kGreen.withOpacity(0.4), width: 1),
+          ) : null,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(sel ? item.$1 : item.$2,
+              size: 22,
+              color: sel ? kGreen : Colors.white.withOpacity(0.3)),
+            const SizedBox(height: 4),
+            Text(item.$3, style: TextStyle(
+              fontSize: 10,
+              fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
+              color: sel ? kGreen : Colors.white.withOpacity(0.3),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _centerLogoBtn(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackingPage())),
+      child: Container(
+        width: 72, height: 72,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: kSurface,
+          shape: BoxShape.circle,
+          border: Border.all(color: kGreen, width: 2.5),
+          boxShadow: [
+            BoxShadow(color: kGreen.withOpacity(0.4), blurRadius: 24, spreadRadius: 3)
+          ],
+        ),
+        child: Hero(
+          tag: 'logo',
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
         ),
       ),
     );
@@ -121,8 +155,9 @@ class AvatarCircle extends StatelessWidget {
   final Color color;
   final double size;
   final bool online;
+  final String? imagePath;
   const AvatarCircle(this.initials, this.color,
-      {super.key, this.size = 52, this.online = false});
+      {super.key, this.size = 52, this.online = false, this.imagePath});
 
   @override
   Widget build(BuildContext context) {
@@ -131,16 +166,22 @@ class AvatarCircle extends StatelessWidget {
         width: size, height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: LinearGradient(
+          gradient: imagePath != null ? null : LinearGradient(
             colors: [color, color.withOpacity(0.5)],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
+          image: imagePath != null ? DecorationImage(
+            image: (imagePath!.startsWith('http') 
+              ? NetworkImage(imagePath!) 
+              : AssetImage(imagePath!)) as ImageProvider,
+            fit: BoxFit.cover,
+          ) : null,
           border: Border.all(color: color.withOpacity(0.5), width: 2),
           boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 12)],
         ),
-        child: Center(child: Text(initials,
+        child: imagePath == null ? Center(child: Text(initials,
           style: const TextStyle(fontWeight: FontWeight.w800,
-              color: Colors.white, fontSize: 16))),
+              color: Colors.white, fontSize: 16))) : null,
       ),
       if (online) Positioned(bottom: 2, right: 2, child: Container(
         width: 10, height: 10,
@@ -205,7 +246,8 @@ class GreenBtn extends StatelessWidget {
 class SectionHeader extends StatelessWidget {
   final String title;
   final String? action;
-  const SectionHeader(this.title, {super.key, this.action});
+  final VoidCallback? onAction;
+  const SectionHeader(this.title, {super.key, this.action, this.onAction});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -214,8 +256,12 @@ class SectionHeader extends StatelessWidget {
       Text(title, style: const TextStyle(
           fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
       const Spacer(),
-      if (action != null) Text(action!, style: const TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w600, color: kGreen)),
+      if (action != null)
+        GestureDetector(
+          onTap: onAction,
+          child: Text(action!, style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: kGreen)),
+        ),
     ]),
   );
 }

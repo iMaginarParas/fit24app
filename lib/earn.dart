@@ -1,25 +1,81 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'api_service.dart';
+import 'challenges_page.dart';
+import 'rewards_page.dart';
 import 'shell.dart';
 
-class EarnPage extends StatelessWidget {
+class EarnPage extends ConsumerStatefulWidget {
   const EarnPage({super.key});
+  @override
+  ConsumerState<EarnPage> createState() => _EP();
+}
+
+class _EP extends ConsumerState<EarnPage> {
+  bool _loading = true;
+  int _today = 0;
+  int _weekTotal = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      final t = await api.getTodaySteps();
+      final h = await api.getStepHistory(days: 7);
+      if (mounted) {
+        setState(() {
+          _today = t['steps'] ?? 0;
+          _weekTotal = h['total_steps'] ?? 0;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: kBg,
-    body: CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-        SliverToBoxAdapter(child: _balanceCard()),
-        SliverToBoxAdapter(child: _rateCards()),
-        SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all')),
-        SliverToBoxAdapter(child: _challengesList()),
-        SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All')),
-        SliverToBoxAdapter(child: _redeemRow()),
-        const SliverToBoxAdapter(child: SizedBox(height: 110)),
+    body: Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/earn_bg.png',
+            fit: BoxFit.cover,
+          ),
+        ),
+        Positioned.fill(
+          child: Container(color: Colors.black.withOpacity(0.55)), // Darken for readability
+        ),
+         if (_loading)
+          const Center(child: CircularProgressIndicator(color: kGreen))
+        else
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+              SliverToBoxAdapter(child: _balanceCard()),
+              SliverToBoxAdapter(child: _rateCards()),
+              SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
+              })),
+              SliverToBoxAdapter(child: _challengesList()),
+              SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+              })),
+              SliverToBoxAdapter(child: _redeemRow()),
+              const SliverToBoxAdapter(child: SizedBox(height: 110)),
+            ],
+          ),
       ],
     ),
   );
@@ -88,17 +144,17 @@ class EarnPage extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('FIT POINTS', style: TextStyle(
+               Text('FIT POINTS', style: TextStyle(
                   fontSize: 10, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 2, fontWeight: FontWeight.w700)),
-              const Text('12,450', style: TextStyle(
+              Text(NumberFormat('#,###').format(_weekTotal * 5), style: const TextStyle(
                   fontSize: 36, fontWeight: FontWeight.w900,
                   color: Colors.white, letterSpacing: -1.5, height: 1.1)),
             ]),
             const Spacer(),
             // Mini circle stat
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              _smallBadge('+5,000', kGreen, 'today'),
+             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              _smallBadge('+${NumberFormat('#,###').format(_today * 5)}', kGreen, 'today'),
               const SizedBox(height: 6),
               _smallBadge('+850', kAmber, 'bonus'),
             ]),
@@ -189,19 +245,25 @@ class EarnPage extends StatelessWidget {
       ]),
     );
 
-  Widget _challengesList() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: Column(children: [
-      _challengeCard('10K Step Sprint', 'Complete 10,000 steps today',
-          0.72, '+50,000 pts', kGreen, Icons.directions_run_rounded, '2h left'),
-      const SizedBox(height: 10),
-      _challengeCard('Weekly Warrior', '70,000 steps this week',
-          0.41, '+200,000 pts', kPurple, Icons.emoji_events_rounded, '4d left'),
-      const SizedBox(height: 10),
-      _challengeCard('Early Bird', '2,000 steps before 9am',
-          0.0, '+15,000 pts', kAmber, Icons.wb_sunny_rounded, 'Tomorrow'),
-    ]),
-  );
+   Widget _challengesList() {
+    final dailyProg = (_today / 10000).clamp(0.0, 1.0);
+    final weekProg = (_weekTotal / 70000).clamp(0.0, 1.0);
+    final earlyProg = (_today / 2000).clamp(0.0, 1.0); // Mocked as morning steps
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(children: [
+        _challengeCard('10K Step Sprint', 'Complete 10,000 steps today',
+            dailyProg, '+50,000 pts', kGreen, Icons.directions_run_rounded, '2h left'),
+        const SizedBox(height: 10),
+        _challengeCard('Weekly Warrior', '70,000 steps this week',
+            weekProg, '+200,000 pts', kPurple, Icons.emoji_events_rounded, '4d left'),
+        const SizedBox(height: 10),
+        _challengeCard('Early Bird', '2,000 steps before 9am',
+            earlyProg, '+15,000 pts', kAmber, Icons.wb_sunny_rounded, 'Tomorrow'),
+      ]),
+    );
+  }
 
   Widget _challengeCard(String title, String desc, double prog,
       String reward, Color color, IconData icon, String timeLeft) =>
@@ -263,16 +325,16 @@ class EarnPage extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        _redeemCard('☕', 'Coffee', '10,000', kAmber),
-        _redeemCard('🎮', 'Game Credits', '25,000', kPurple),
-        _redeemCard('💸', 'Cash Out', '50,000', kGreen),
-        _redeemCard('🎁', 'Gift Card', '40,000', kCoral),
-        _redeemCard('👟', 'Shoes', '100,000', kBlue),
+        _redeemCard('assets/images/reward_coffee.png', 'Coffee', '10,000', kAmber),
+        _redeemCard('assets/images/reward_gaming.png', 'Game Credits', '25,000', kPurple),
+        _redeemCard('assets/images/reward_cash.png', 'Cash Out', '50,000', kGreen),
+        _redeemCard('assets/images/reward_gift.png', 'Gift Card', '40,000', kCoral),
+        _redeemCard('assets/images/reward_shoes.png', 'Shoes', '100,000', kBlue),
       ],
     ),
   );
 
-  Widget _redeemCard(String icon, String title, String cost, Color color) =>
+  Widget _redeemCard(String imagePath, String title, String cost, Color color) =>
     Container(
       width: 130, margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(16),
@@ -287,8 +349,11 @@ class EarnPage extends StatelessWidget {
           width: 40, height: 40,
           decoration: BoxDecoration(
             color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(12),
+            image: DecorationImage(
+              image: AssetImage(imagePath),
+              fit: BoxFit.cover,
+            ),
           ),
-          child: Center(child: Text(icon, style: const TextStyle(fontSize: 22))),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: const TextStyle(

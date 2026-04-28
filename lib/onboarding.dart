@@ -18,7 +18,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_state.dart';
 import 'shell.dart';
 
-const _kBaseUrl = 'https://fit24bc-production.up.railway.app';
+// API base (managed by ApiService)
+
 const kOnboardingDoneKey = 'onboarding_done';
 
 // ── Data model collected across steps ────────────────────────────────────────
@@ -105,31 +106,21 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     }
 
     try {
-      final res = await http.post(
-        Uri.parse('$_kBaseUrl/profile/setup'),
-        headers: {
-          'Content-Type'  : 'application/json',
-          'Authorization' : 'Bearer $accessToken',
-        },
-        body: jsonEncode(_data.toJson()),
-      ).timeout(const Duration(seconds: 15));
-
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        await prefs.setBool(kOnboardingDoneKey, true);
-        await prefs.setString('profile_data', jsonEncode(_data.toJson()));
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const AppShell()),
-            (_) => false,
-          );
-        }
-      } else {
-        final b = jsonDecode(res.body);
-        setState(() => _error = b['detail'] ?? 'Failed to save. Try again.');
+      final api = ref.read(apiServiceProvider);
+      await api.setupProfile(_data.toJson());
+      
+      await prefs.setBool(kOnboardingDoneKey, true);
+      await prefs.setString('profile_data', jsonEncode(_data.toJson()));
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AppShell()),
+          (_) => false,
+        );
       }
-    } catch (_) {
-      setState(() => _error = 'Network error. Check your connection.');
+    } catch (e) {
+      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
     } finally {
+
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -139,20 +130,42 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(children: [
+      backgroundColor: Colors.black,
+      extendBody: true,
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          // Background Image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/onboarding_bg.png',
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+          // Gradient Overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [kBg.withOpacity(0.8), kBg.withOpacity(0.95)],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(children: [
           // ── Top bar: logo + progress dots ──────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: Column(children: [
               Row(children: [
                 // Logo
-                Image.asset('assets/logo.png', width: 36, height: 36),
-                const SizedBox(width: 8),
-                const Text('FIT24', style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w900,
-                    color: Colors.white, letterSpacing: 2)),
+                Image.asset('assets/logo.png', width: 42, height: 42),
                 const Spacer(),
                 if (_step > 0)
                   GestureDetector(
@@ -257,6 +270,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
           ),
         ]),
       ),
+      ],
+    ),
     );
   }
 
@@ -431,11 +446,11 @@ class _GenderStep extends StatelessWidget {
     question: 'What Is Your Gender?',
     child: Row(
       children: [
-        _GenderCard('Male',   '🧍‍♂️', data.gender == 'male', () {
+        _GenderCard('Male',   'assets/images/gender_male.png', data.gender == 'male', () {
           onChanged(() => data.gender = 'male');
         }),
         const SizedBox(width: 16),
-        _GenderCard('Female', '🧍‍♀️', data.gender == 'female', () {
+        _GenderCard('Female', 'assets/images/gender_female.png', data.gender == 'female', () {
           onChanged(() => data.gender = 'female');
         }),
       ],
@@ -444,10 +459,10 @@ class _GenderStep extends StatelessWidget {
 }
 
 class _GenderCard extends StatelessWidget {
-  final String label, emoji;
+  final String label, imagePath;
   final bool selected;
   final VoidCallback onTap;
-  const _GenderCard(this.label, this.emoji, this.selected, this.onTap);
+  const _GenderCard(this.label, this.imagePath, this.selected, this.onTap);
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -466,12 +481,25 @@ class _GenderCard extends StatelessWidget {
             BoxShadow(color: kGreen.withOpacity(0.2), blurRadius: 20)
           ] : [],
         ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(emoji, style: const TextStyle(fontSize: 64)),
-          const SizedBox(height: 12),
-          Text(label, style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w800,
-              color: selected ? kGreen : Colors.white)),
+        child: Column(children: [
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                image: DecorationImage(
+                  image: AssetImage(imagePath),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16, top: 8),
+            child: Text(label, style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w800,
+                color: selected ? kGreen : Colors.white)),
+          ),
         ]),
       ),
     ),

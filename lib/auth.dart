@@ -16,10 +16,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_state.dart';
 import 'onboarding.dart';
+import 'slideshow.dart';
 import 'shell.dart';
 
 // ── API base ──────────────────────────────────────────────────────────────────
-const _kBaseUrl = 'https://fit24bc-production.up.railway.app';
+// API base (managed by ApiService)
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AuthGate — single widget that handles the full app routing:
@@ -36,7 +38,7 @@ class AuthGate extends ConsumerStatefulWidget {
   ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-enum _Route { loading, auth, onboarding, home }
+enum _Route { loading, slideshow, auth, onboarding, home }
 
 class _AuthGateState extends ConsumerState<AuthGate> {
   _Route _route = _Route.loading;
@@ -56,7 +58,13 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     final storedUserId = prefs.getString('auth_user_id')      ?? '';
 
     if (storedToken.isEmpty || storedUserId.isEmpty) {
-      // No stored session → show AuthScreen right away
+      // No stored session -> check if slideshow was seen
+      final slideshowSeen = prefs.getBool('slideshow_seen') ?? false;
+      if (!slideshowSeen) {
+        if (!mounted) return;
+        setState(() => _route = _Route.slideshow);
+        return;
+      }
       if (!mounted) return;
       setState(() => _route = _Route.auth);
       return;
@@ -130,6 +138,11 @@ class _AuthGateState extends ConsumerState<AuthGate> {
 
     switch (_route) {
       case _Route.loading:    return const _SplashScreen();
+      case _Route.slideshow:  return SlideshowPage(onFinish: () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('slideshow_seen', true);
+        setState(() => _route = _Route.auth);
+      });
       case _Route.auth:       return const AuthScreen();
       case _Route.onboarding: return const OnboardingFlow();
       case _Route.home:       return const AppShell();
@@ -142,31 +155,38 @@ class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBg,
+    backgroundColor: Colors.black,
+    extendBody: true,
+    extendBodyBehindAppBar: true,
     body: Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 90, height: 90,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [BoxShadow(
-                color: kGreen.withOpacity(0.4),
-                blurRadius: 28, offset: const Offset(0, 8))],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Image.asset('assets/logo.png', width: 60, height: 60, fit: BoxFit.contain),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: Image.asset('assets/logo.png', fit: BoxFit.cover),
+          const SizedBox(height: 20),
+          RichText(
+            text: const TextSpan(
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 2),
+              children: [
+                TextSpan(text: 'FIT', style: TextStyle(color: Colors.white)),
+                TextSpan(text: '24', style: TextStyle(color: kGreen)),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        const Text('FIT24', style: TextStyle(
-            fontSize: 26, fontWeight: FontWeight.w900,
-            color: Colors.white, letterSpacing: 4)),
-        const SizedBox(height: 32),
-        SizedBox(width: 24, height: 24,
-          child: CircularProgressIndicator(
-              strokeWidth: 2, color: kGreen.withOpacity(0.6))),
-      ]),
+          const SizedBox(height: 48),
+          SizedBox(width: 24, height: 24,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: kGreen.withOpacity(0.6))),
+        ],
+      ),
     ),
   );
 }
@@ -269,44 +289,34 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     if (phone.length < 12) { _err('Enter a valid 10-digit number'); return; }
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await http.post(
-        Uri.parse('$_kBaseUrl/auth/send-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': phone, 'mode': _mode.name}),
-      ).timeout(const Duration(seconds: 15));
+      final api = ref.read(apiServiceProvider);
+      await api.sendOtp(phone, _mode.name);
+      _toOtp();
+      _startCountdown();
+    } catch (e) {
+      final detail = e.toString().toLowerCase();
 
-      if (res.statusCode == 200) {
-        _toOtp();
-        _startCountdown();
+      // Supabase returns an error when trying to signup with an existing phone.
+      // Detect common messages and auto-switch to login mode.
+      final alreadyExists = detail.contains('already') ||
+          detail.contains('registered') ||
+          detail.contains('exists') ||
+          detail.contains('user already') ||
+          detail.contains('duplicate');
+
+      if (alreadyExists && _mode == _Mode.signup) {
+        setState(() {
+          _mode  = _Mode.login;
+          _error = null;
+        });
+        // Retry immediately in login mode with a friendly banner
+        _showAlreadyExistsBanner();
+        await _sendOtp();   // recursive — now in login mode
       } else {
-        final b = jsonDecode(res.body);
-        final detail = (b['detail'] ?? '').toString().toLowerCase();
-
-        // Supabase returns an error when trying to signup with an existing phone.
-        // Detect common messages and auto-switch to login mode.
-        final alreadyExists = detail.contains('already') ||
-            detail.contains('registered') ||
-            detail.contains('exists') ||
-            detail.contains('user already') ||
-            detail.contains('duplicate');
-
-        if (alreadyExists && _mode == _Mode.signup) {
-          setState(() {
-            _mode  = _Mode.login;
-            _error = null;
-          });
-          // Retry immediately in login mode with a friendly banner
-          _showAlreadyExistsBanner();
-          await _sendOtp();   // recursive — now in login mode
-        } else {
-          _err(b['detail'] ?? 'Failed to send OTP');
-        }
+        _err(e.toString().replaceAll('Exception: ', ''));
       }
-    } on TimeoutException {
-      _err('Request timed out. Try again.');
-    } catch (_) {
-      _err('Network error. Check your connection.');
     } finally {
+
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -340,52 +350,41 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     if (token.length != 6) { _err('Enter all 6 digits'); return; }
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await http.post(
-        Uri.parse('$_kBaseUrl/auth/verify-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'phone': _e164,
-          'token': token,
-          'mode' : _mode.name,
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final api = ref.read(apiServiceProvider);
+      final b = await api.verifyOtp(_e164, token, _mode.name);
+      
+      final accessToken  = b['tokens']['access_token'] as String;
+      final refreshToken = b['tokens']['refresh_token'] as String;
+      final userId       = b['user']['id'] as String;
+      final phone        = b['user']['phone'] as String? ?? _e164;
 
-      final b = jsonDecode(res.body);
-      if (res.statusCode == 200) {
-        final accessToken  = b['tokens']['access_token'] as String;
-        final refreshToken = b['tokens']['refresh_token'] as String;
-        final userId       = b['user']['id'] as String;
-        final phone        = b['user']['phone'] as String? ?? _e164;
-
-        await ref.read(authProvider.notifier).signIn(
-          accessToken:  accessToken,
-          refreshToken: refreshToken,
-          userId:       userId,
-          phone:        phone,
-        );
-        // AuthGate rebuilds automatically
+      await ref.read(authProvider.notifier).signIn(
+        accessToken:  accessToken,
+        refreshToken: refreshToken,
+        userId:       userId,
+        phone:        phone,
+      );
+      // AuthGate rebuilds automatically
+    } catch (e) {
+      final detail = e.toString().toLowerCase();
+      // Supabase 422: phone already confirmed = existing user tried signup
+      final isExisting = detail.contains('already') || 
+           detail.contains('confirmed') ||
+           detail.contains('registered') || 
+           detail.contains('otp');
+      
+      if (isExisting && _mode == _Mode.signup) {
+        setState(() { _mode = _Mode.login; _error = null; });
+        for (final c in _otpCtrls) c.clear();
+        _showAlreadyExistsBanner();
+        if (mounted) _otpFocus[0].requestFocus();
       } else {
-        final detail = (b['detail'] ?? '').toString().toLowerCase();
-        // Supabase 422: phone already confirmed = existing user tried signup
-        final isExisting = res.statusCode == 422 &&
-            (detail.contains('already') || detail.contains('confirmed') ||
-             detail.contains('registered') || detail.contains('otp'));
-        if (isExisting && _mode == _Mode.signup) {
-          setState(() { _mode = _Mode.login; _error = null; });
-          for (final c in _otpCtrls) c.clear();
-          _showAlreadyExistsBanner();
-          if (mounted) _otpFocus[0].requestFocus();
-        } else {
-          _err(b['detail'] ?? 'Invalid OTP. Try again.');
-          for (final c in _otpCtrls) c.clear();
-          if (mounted) _otpFocus[0].requestFocus();
-        }
+        _err(e.toString().replaceAll('Exception: ', ''));
+        for (final c in _otpCtrls) c.clear();
+        if (mounted) _otpFocus[0].requestFocus();
       }
-    } on TimeoutException {
-      _err('Request timed out. Try again.');
-    } catch (_) {
-      _err('Network error. Check your connection.');
     } finally {
+
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -395,52 +394,74 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Colors.transparent,
+      extendBody: true,
+      extendBodyBehindAppBar: true,
       resizeToAvoidBottomInset: true,
-      body: Stack(children: [
-        // Ambient green glow
-        Positioned(
-          top: -130, left: -90,
-          child: Container(
-            width: 360, height: 360,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(colors: [
-                kGreen.withOpacity(0.09), Colors.transparent,
-              ]),
+      body: SizedBox.expand(
+        child: Stack(children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/auth_bg.png',
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              alignment: Alignment.topCenter,
+              color: Colors.black.withOpacity(0.3),
+              colorBlendMode: BlendMode.darken,
             ),
           ),
-        ),
-        SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
-                  _topBar(),
-                  const SizedBox(height: 44),
-                  _logo(),
-                  const SizedBox(height: 38),
-                  if (_step == _Step.phone) _phoneStep(),
-                  if (_step == _Step.otp)   _otpStep(),
-                  const SizedBox(height: 28),
-                  if (_error != null) ...[_errorBanner(), const SizedBox(height: 12)],
-                  _primaryBtn(),
-                  const SizedBox(height: 22),
-                  if (_step == _Step.phone) _modeToggle(),
-                  if (_step == _Step.otp)   _resendRow(),
-                  const SizedBox(height: 40),
-                  _termsNote(),
-                  const SizedBox(height: 24),
-                ],
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-0.6, -0.6),
+                  radius: 1.2,
+                  colors: [kGreen.withOpacity(0.15), Colors.transparent],
+                ),
               ),
             ),
           ),
-        ),
-      ]),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.of(context).size.height - 
+                               MediaQuery.of(context).padding.top - 
+                               MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 32),
+                      _logo(),
+                      const SizedBox(height: 32),
+                      _topBar(),
+                      _titleSection(),
+                      const SizedBox(height: 32),
+                      if (_step == _Step.phone) _phoneStep(),
+                      if (_step == _Step.otp)   _otpStep(),
+                      const SizedBox(height: 28),
+                      if (_error != null) ...[_errorBanner(), const SizedBox(height: 12)],
+                      _primaryBtn(),
+                      const SizedBox(height: 22),
+                      if (_step == _Step.phone) _modeToggle(),
+                      if (_step == _Step.otp)   _resendRow(),
+                      const SizedBox(height: 40),
+                      _termsNote(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 
@@ -462,32 +483,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
-  Widget _logo() => Column(
+  Widget _logo() => Row(
+    children: [
+      Image.network(
+        'https://www.image2url.com/r2/default/images/1776158261618-440cb3d6-dcff-4851-9f4e-0d6ffc5851d8.png',
+        height: 72, 
+        fit: BoxFit.contain,
+      ),
+    ],
+  );
+
+  Widget _titleSection() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Container(
-        width: 80, height: 80,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(
-              color: kGreen.withOpacity(0.35),
-              blurRadius: 26, offset: const Offset(0, 8))],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: Image.asset('assets/logo.png', fit: BoxFit.cover),
-        ),
-      ),
-      const SizedBox(height: 22),
       Text(
         _step == _Step.phone
             ? (_mode == _Mode.signup ? 'Create\nAccount' : 'Welcome\nBack')
             : 'Verify Your\nPhone',
         style: const TextStyle(
-            fontSize: 40, fontWeight: FontWeight.w900, color: Colors.white,
-            height: 1.08, letterSpacing: -1.8),
+            fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white,
+            height: 1.05, letterSpacing: -1.5),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 12),
       Text(
         _step == _Step.phone
             ? (_mode == _Mode.signup
@@ -495,7 +512,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 : 'Good to see you again. Sign in below.')
             : 'We sent a 6-digit code to $_e164',
         style: TextStyle(
-            fontSize: 14, color: Colors.white.withOpacity(0.38), height: 1.55),
+            fontSize: 15, color: Colors.white.withOpacity(0.4), height: 1.5),
       ),
     ],
   );

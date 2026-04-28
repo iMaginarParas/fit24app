@@ -13,6 +13,20 @@
 	<key>NSMotionUsageDescription</key>
 	<string>StepFlow uses your device's motion sensor to count steps when Health data is unavailable.</string>
 
+	<!-- ── Location (GPS Tracking) ─────────────────────────────────────────── -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fit24 needs your location to track your running, walking, and cycling routes accurately.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Fit24 needs your location in the background to continue recording your workout route even when the screen is off.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Fit24 needs your location in the background to continue recording your workout route even when the screen is off.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 	<!-- ── Standard Flutter keys ─────────────────────────────────────────────── -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

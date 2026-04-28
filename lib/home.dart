@@ -6,9 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'api_service.dart';
+import 'profile.dart';
 import 'shell.dart';
+import 'tracking_page.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
 const _events = EventChannel('com.fit24app/steps_stream');
@@ -28,22 +32,23 @@ enum _S { perm, hc, loading, ready }
 
 class _Day { final DateTime date; final int steps; const _Day(this.date, this.steps); }
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
   @override
-  State<HomePage> createState() => _HS();
+  ConsumerState<HomePage> createState() => _HS();
 }
 
-class _HS extends State<HomePage> with TickerProviderStateMixin {
+class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   _S _s = _S.perm;
   int _today = 0;
   Map<String, int> _hist = {};
   StreamSubscription? _sub;
   late AnimationController _pulse;
   late AnimationController _spin;
-  late AnimationController _heartAnim;
   int _disp = 0, _last = -1;
   Timer? _tick;
+  Timer? _syncTimer;
+  int _lastSynced = 0;
   static const kGoal = 10000;
 
   // BOLD THEME COLORS
@@ -58,8 +63,6 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
         duration: const Duration(milliseconds: 2000))..repeat(reverse: true);
     _spin = AnimationController(vsync: this,
         duration: const Duration(seconds: 10))..repeat();
-    _heartAnim = AnimationController(vsync: this,
-        duration: const Duration(milliseconds: 600))..repeat(reverse: true);
     _checkPerm();
   }
 
@@ -78,15 +81,62 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
 
   void _startTracking() {
     _sub = _events.receiveBroadcastStream().listen((v) {
-      if (mounted) { setState(() => _today = v as int); _animTo(v as int); }
+      if (mounted) {
+        setState(() => _today = v as int);
+        _animTo(v as int);
+        if ((v as int) - _lastSynced > 100) _syncToBackend();
+      }
     });
-    _method.invokeMethod<int>('getTodaySteps').then((v) {
-      if (v != null && v > 0 && mounted) { setState(() => _today = v); _animTo(v); }
-    });
+    
+    // Fetch initial state from backend or local
+    _initSteps();
+
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) => _syncToBackend());
+  }
+
+  Future<void> _initSteps() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final todayData = await api.getTodaySteps();
+      final backendSteps = todayData['steps'] as int? ?? 0;
+      
+      final localSteps = await _method.invokeMethod<int>('getTodaySteps') ?? 0;
+      
+      final best = math.max(backendSteps, localSteps);
+      if (best > 0 && mounted) {
+        setState(() => _today = best);
+        _animTo(best);
+        _lastSynced = best;
+      }
+    } catch (_) {}
     _loadHist();
   }
 
+  Future<void> _syncToBackend() async {
+    if (_today == _lastSynced || _today == 0) return;
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.syncSteps(_today);
+      _lastSynced = _today;
+    } catch (_) {}
+  }
+
   Future<void> _loadHist() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final h = await api.getStepHistory(days: 7);
+      final days = h['days'] as List?;
+      if (days != null && mounted) {
+        final Map<String, int> data = {};
+        for (var d in days) {
+          data[d['log_date']] = d['steps'] as int;
+        }
+        setState(() => _hist = data);
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback to local
     final r = await _method.invokeMapMethod<String, int>('getHistory', {'days': 6});
     if (r != null && mounted) setState(() => _hist = r);
   }
@@ -137,31 +187,37 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _pulse.dispose(); _spin.dispose(); _heartAnim.dispose();
+    _pulse.dispose(); _spin.dispose();
     _tick?.cancel(); _sub?.cancel();
+    _syncTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ultra-Premium Dark Background (Deep Violet to True Black)
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, 
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF130B29), // Deep rich violet
-            Color(0xFF000000), // Pure Black
-          ],
+    // Ultra-Premium Dark Background with Image
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/home_bg.png',
+            fit: BoxFit.cover,
+          ),
         ),
-      ),
-      child: switch (_s) {
-        _S.perm    => _permView(),
-        _S.hc      => _hcView(),
-        _S.loading => _loadView(),
-        _S.ready   => _dashboard(),
-      },
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(0.6), // Darken the image slightly
+          ),
+        ),
+        Positioned.fill(
+          child: switch (_s) {
+            _S.perm    => _permView(),
+            _S.hc      => _hcView(),
+            _S.loading => _loadView(),
+            _S.ready   => _dashboard(),
+          },
+        ),
+      ],
     );
   }
 
@@ -319,12 +375,16 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
               child: _topBar(lv, pts))),
           SliverToBoxAdapter(child: _mainRingCard(pct)),
           SliverToBoxAdapter(child: _metricsRow()),
-          SliverToBoxAdapter(child: _heartRateCard()),
-          SliverToBoxAdapter(child: _weekSection(week, best)),
-          SliverToBoxAdapter(child: _pointsCard(pts, lv)),
+
           SliverToBoxAdapter(child: _milestonesSection()),
           const SliverToBoxAdapter(child: SizedBox(height: 110)),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackingPage())),
+        backgroundColor: cCyan,
+        icon: const Icon(Icons.play_arrow_rounded, color: Colors.black),
+        label: const Text('Start Activity', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -360,7 +420,16 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
       ),
       const SizedBox(width: 14),
       
-      AvatarCircle('PG', cCyan, size: 42, online: true),
+      GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+        child: const AvatarCircle(
+          'PG', 
+          cCyan, 
+          size: 42, 
+          online: true, 
+          imagePath: 'assets/images/user_profile.png',
+        ),
+      ),
     ]),
   );
 
@@ -504,62 +573,7 @@ class _HS extends State<HomePage> with TickerProviderStateMixin {
       ]),
     );
 
-  // ── Heart rate card ───────────────────────────────────────────────────────
 
-  Widget _heartRateCard() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-    child: Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
-        image: DecorationImage(
-          image: const NetworkImage('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=600'),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(const Color(0xFF0F0B1E).withOpacity(0.85), BlendMode.srcATop), 
-        )
-      ),
-      child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Row(children: [
-            AnimatedBuilder(
-              animation: _heartAnim,
-              builder: (_, __) => Icon(Icons.favorite_rounded,
-                  color: cPink.withOpacity(0.5 + _heartAnim.value * 0.5),
-                  size: 22),
-            ),
-            const SizedBox(width: 8),
-            const Text('Heart Rate', style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-          ]),
-          Chip24('LIVE', color: cPink),
-        ]),
-        const SizedBox(height: 4),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('Good pace', style: TextStyle(
-              fontSize: 12, color: Colors.white.withOpacity(0.7))),
-          Row(children: [
-            Text('96', style: TextStyle(
-                fontSize: 28, fontWeight: FontWeight.w900,
-                color: Colors.white,
-                shadows: [Shadow(color: cPink.withOpacity(0.8), blurRadius: 15)])),
-            const SizedBox(width: 4),
-            Text('BPM', style: TextStyle(
-                fontSize: 12, color: Colors.white.withOpacity(0.8),
-                fontWeight: FontWeight.w600)),
-          ]),
-        ]),
-        const SizedBox(height: 14),
-        SizedBox(height: 60,
-          child: CustomPaint(
-            size: const Size(double.infinity, 60),
-            painter: _HeartRatePainter(),
-          )),
-      ]),
-    ),
-  );
 
   // ── Week section ──────────────────────────────────────────────────────────
 
@@ -881,73 +895,4 @@ class _PremiumOrbPainter extends CustomPainter {
   bool shouldRepaint(_PremiumOrbPainter o) => 
       o.progress != progress || o.pulse != pulse;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HEART RATE PAINTER — Fiery Pink/Orange Gradient
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _HeartRatePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path();
-    final w = size.width; final h = size.height;
-
-    final pts = [
-      Offset(0, h * 0.6),
-      Offset(w * 0.08, h * 0.6),
-      Offset(w * 0.12, h * 0.2),
-      Offset(w * 0.16, h * 0.9),
-      Offset(w * 0.20, h * 0.5),
-      Offset(w * 0.28, h * 0.55),
-      Offset(w * 0.32, h * 0.15),
-      Offset(w * 0.36, h * 0.85),
-      Offset(w * 0.40, h * 0.5),
-      Offset(w * 0.50, h * 0.58),
-      Offset(w * 0.55, h * 0.25),
-      Offset(w * 0.60, h * 0.9),
-      Offset(w * 0.64, h * 0.5),
-      Offset(w * 0.72, h * 0.55),
-      Offset(w * 0.76, h * 0.18),
-      Offset(w * 0.80, h * 0.88),
-      Offset(w * 0.84, h * 0.52),
-      Offset(w, h * 0.58),
-    ];
-
-    path.moveTo(pts[0].dx, pts[0].dy);
-    for (int i = 1; i < pts.length; i++) {
-      final prev = pts[i - 1];
-      final curr = pts[i];
-      final cpX = (prev.dx + curr.dx) / 2;
-      path.cubicTo(cpX, prev.dy, cpX, curr.dy, curr.dx, curr.dy);
-    }
-
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFFF007F), Color(0xFFFFB300), Color(0xFFFF007F)], // Pink to Orange
-      ).createShader(Rect.fromLTWH(0, 0, w, h));
-    
-    // Add a slight glowing shadow to the line
-    canvas.drawPath(path, Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..color = const Color(0xFFFF007F).withOpacity(0.3)
-      ..maskFilter = const flutter_ui.MaskFilter.blur(BlurStyle.normal, 8)
-    );
-      
-    canvas.drawPath(path, linePaint);
-
-    final fillPath = Path.from(path)
-      ..lineTo(w, h) ..lineTo(0, h) ..close();
-    canvas.drawPath(fillPath, Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: [const Color(0xFFFF007F).withOpacity(0.3), Colors.transparent],
-      ).createShader(Rect.fromLTWH(0, 0, w, h)));
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
+
