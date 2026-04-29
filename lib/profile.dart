@@ -349,7 +349,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget _metricProfileSlide(String title, Color color, String img, String unit, dynamic Function(dynamic) valFn, {bool isKm = false}) {
     final sorted = _history.reversed.toList();
     final data = sorted.map((d) => valFn(d).toDouble()).toList();
-    final max = data.fold(1.0, math.max);
+    final max = data.fold(1.0, (m, v) => math.max(m, v));
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
@@ -388,7 +388,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.8))),
                       const SizedBox(height: 8),
                       Container(
-                        height: h,
+                        height: h.toDouble(),
                         width: 12,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(100),

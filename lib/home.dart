@@ -78,16 +78,6 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     Future.microtask(() => ref.read(userPointsProvider.notifier).refresh());
   }
 
-  @override
-  void dispose() {
-    _pulse.dispose();
-    _spin.dispose();
-    _sc.dispose();
-    _pc.dispose();
-    _tick?.cancel();
-    _sub?.cancel();
-    super.dispose();
-  }
 
   Future<void> _checkPerm() async {
     final prefs = await SharedPreferences.getInstance();
@@ -239,9 +229,12 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _pulse.dispose(); _spin.dispose();
+    _pulse.dispose();
+    _spin.dispose();
     _sc.dispose();
-    _tick?.cancel(); _sub?.cancel();
+    _pc.dispose();
+    _tick?.cancel();
+    _sub?.cancel();
     _syncTimer?.cancel();
     _healthSyncTimer?.cancel();
     super.dispose();
@@ -595,7 +588,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
                       Container(height: 8, color: Colors.white.withOpacity(0.1)),
                       LayoutBuilder(builder: (c, cx) => AnimatedContainer(
                         duration: const Duration(milliseconds: 700),
-                        height: 8,
+                        height: 8.0,
                         width: cx.maxWidth * pct,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -676,7 +669,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               _metricSlide(
                 'Steps', 
                 week, 
-                (d) => d.steps, 
+                (d) => d.steps.toDouble(), 
                 cCyan, 
                 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600',
                 'per day'
@@ -684,7 +677,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               _metricSlide(
                 'Calories', 
                 week, 
-                (d) => d.steps ~/ 20, 
+                (d) => (d.steps ~/ 20).toDouble(), 
                 kCoral, 
                 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=600',
                 'kcal avg'
@@ -712,7 +705,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   Widget _metricSlide(String title, List<_Day> week, dynamic Function(_Day) valFn, Color color, String img, String sub, {bool isKm = false}) {
     final data = week.map((d) => valFn(d)).toList();
-    final max = data.map((v) => v.toDouble()).fold(1.0, math.max);
+    final max = data.fold(1.0, (m, v) => math.max(m.toDouble(), v.toDouble()));
     final avg = (data.map((v) => v.toDouble()).reduce((a, b) => a + b) / data.length);
 
     return Padding(
@@ -773,7 +766,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeOutBack,
-                        height: isZero ? 4 : barH,
+                        height: isZero ? 4.0 : barH.toDouble(),
                         width: 14,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(100),

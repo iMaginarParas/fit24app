@@ -557,7 +557,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       });
     }
 
-    final maxVal = chartData.map((d) => d['val'] as double).fold(0.1, math.max);
+    final maxVal = chartData.map((d) => d['val'] as double).fold(0.1, (m, v) => math.max(m, v));
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -608,7 +608,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                           ),
                         AnimatedContainer(
                           duration: Duration(milliseconds: 400 + i * 50),
-                          height: h,
+                          height: h.toDouble(),
                           width: 14,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(4),
