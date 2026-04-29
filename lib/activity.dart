@@ -11,6 +11,9 @@ import 'leaderboard.dart';
 import 'session_detail_page.dart';
 import 'shell.dart';
 import 'tracking_service.dart';
+import 'notifications_settings_page.dart';
+import 'step_provider.dart';
+import 'points_provider.dart';
 
 class ActivityPage extends ConsumerStatefulWidget {
   const ActivityPage({super.key});
@@ -113,8 +116,8 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   static const _days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   static const _colors = [kPurple, kBlue, kTeal, kAmber, kCoral, kPurple, kGreen];
 
-  @override
-  Widget build(BuildContext context) {
+    final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? 0;
+
     return Scaffold(
       backgroundColor: kBg,
       body: RefreshIndicator(
@@ -151,13 +154,13 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
               slivers: [
                 SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
                 SliverToBoxAdapter(child: _periodTabs()),
-                SliverToBoxAdapter(child: _mainStepCard()),
+                SliverToBoxAdapter(child: _mainStepCard(liveSteps)),
                 SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
                 SliverToBoxAdapter(child: _modeTotals()),
                 SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
-                SliverToBoxAdapter(child: _barChart()),
+                SliverToBoxAdapter(child: _barChart(liveSteps)),
                 SliverToBoxAdapter(child: SectionHeader('Activity Log')),
-                SliverToBoxAdapter(child: _logList()),
+                SliverToBoxAdapter(child: _logList(liveSteps)),
                 const SliverToBoxAdapter(child: SizedBox(height: 110)),
               ],
             ),
@@ -211,7 +214,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       ),
       const SizedBox(width: 10),
       GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsSettingsPage())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsSettingsPage())),
         child: Container(
           width: 40, height: 40,
           decoration: BoxDecoration(
@@ -352,7 +355,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     ),
   );
 
-  Widget _mainStepCard() {
+  Widget _mainStepCard(int liveSteps) {
     final todayLog = _history.isNotEmpty ? _history.first : null;
     final dailySteps = todayLog != null ? (todayLog['steps'] as num?)?.toInt() ?? 0 : 0;
     
@@ -374,9 +377,10 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     }
 
     if (_selectedType == null || _selectedType == ActivityType.walking) {
-      filteredSteps += dailySteps;
-      filteredDist += (dailySteps * 0.75); // meters
-      filteredCal += (dailySteps ~/ 20);
+      final bestSteps = math.max(dailySteps, liveSteps);
+      filteredSteps += bestSteps;
+      filteredDist += (bestSteps * 0.75); // meters
+      filteredCal += (bestSteps ~/ 20);
     }
 
     final totalTodaySteps = filteredSteps;
@@ -450,7 +454,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       ]),
     ]);
 
-  Widget _barChart() {
+  Widget _barChart(int liveSteps) {
     final week = _history.take(7).toList();
     if (week.isEmpty) return const SizedBox();
     
@@ -462,7 +466,11 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       int totalSteps = 0;
       
       if (_selectedType == null || _selectedType == ActivityType.walking) {
-        totalSteps += (d['steps'] as num?)?.toInt() ?? 0;
+        int s = (d['steps'] as num?)?.toInt() ?? 0;
+        if (dateStr == DateFormat('yyyy-MM-dd').format(DateTime.now())) {
+          s = math.max(s, liveSteps);
+        }
+        totalSteps += s;
       }
       
       for (var s in _sessions) {
@@ -553,7 +561,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     );
   }
 
-  Widget _logList() {
+  Widget _logList(int liveSteps) {
     if (_history.isEmpty) return const SizedBox();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -561,9 +569,11 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         children: _history.map((d) {
           final date = DateTime.parse(d['log_date']);
           final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
-          final steps = (d['steps'] as num?)?.toInt() ?? 0;
-          final cal = (d['calories'] as num?)?.toInt() ?? 0;
-          final dist = ((d['distance_m'] as num?)?.toDouble() ?? 0.0) / 1000.0;
+          int steps = (d['steps'] as num?)?.toInt() ?? 0;
+          if (isToday) steps = math.max(steps, liveSteps);
+          
+          final cal = (steps ~/ 20); // Simplified for log
+          final dist = (steps * 0.75) / 1000.0;
           
           String dayLabel = DateFormat('MMM d').format(date);
           if (isToday) dayLabel = 'Today';

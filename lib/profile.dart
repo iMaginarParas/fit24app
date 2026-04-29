@@ -270,18 +270,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   );
 
   Widget _statsGrid() {
-    final statsAsync = ref.watch(profileStatsProvider);
+    final stats = ref.watch(profileStatsProvider);
+    final baseAsync = ref.watch(baseProfileStatsProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      child: statsAsync.when(
+      child: baseAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
         error: (_, __) => const SizedBox(),
-        data: (s) => Row(children: [
-          Expanded(child: _minimalStat(NumberFormat.compact().format(s.totalSteps), 'Steps', kTeal)),
+        data: (_) => Row(children: [
+          Expanded(child: _minimalStat(NumberFormat.compact().format(stats.totalSteps), 'Steps', kTeal)),
           const SizedBox(width: 12),
-          Expanded(child: _minimalStat(NumberFormat.compact().format(s.totalPoints), 'Points', kAmber)),
+          Expanded(child: _minimalStat(NumberFormat.compact().format(stats.totalPoints), 'Points', kAmber)),
           const SizedBox(width: 12),
-          Expanded(child: _minimalStat(s.totalSessions.toString(), 'Sessions', kBlue)),
+          Expanded(child: _minimalStat(stats.totalSessions.toString(), 'Sessions', kBlue)),
         ]),
       ),
     );

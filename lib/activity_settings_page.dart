@@ -24,6 +24,13 @@ class _ActivitySettingsPageState extends ConsumerState<ActivitySettingsPage> {
     super.initState();
     // Start by loading from local cache for immediate feedback
     _loadLocal();
+    // Also sync from profile provider if data is already available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profile = ref.read(profileDataProvider).valueOrNull;
+      if (profile != null) {
+        _syncFromBackend(profile);
+      }
+    });
   }
 
   Future<void> _loadLocal() async {
@@ -39,15 +46,24 @@ class _ActivitySettingsPageState extends ConsumerState<ActivitySettingsPage> {
   }
 
   void _syncFromBackend(Map<String, dynamic> p) {
-    // Only update if the values exist in the profile
-    setState(() {
-      darkMap = p['tracking_dark_map'] as bool? ?? darkMap;
-      audioFeedback = p['tracking_audio_feedback'] as bool? ?? audioFeedback;
-      countdownTimer = p['tracking_countdown_timer'] as bool? ?? countdownTimer;
-      keepScreenOn = p['tracking_keep_screen_on'] as bool? ?? keepScreenOn;
-      autoPause = p['tracking_auto_pause'] as bool? ?? autoPause;
-      autoResume = p['tracking_auto_resume'] as bool? ?? autoResume;
-    });
+    bool changed = false;
+    final newDarkMap = p['tracking_dark_map'] as bool? ?? darkMap;
+    final newAudioFeedback = p['tracking_audio_feedback'] as bool? ?? audioFeedback;
+    final newCountdownTimer = p['tracking_countdown_timer'] as bool? ?? countdownTimer;
+    final newKeepScreenOn = p['tracking_keep_screen_on'] as bool? ?? keepScreenOn;
+    final newAutoPause = p['tracking_auto_pause'] as bool? ?? autoPause;
+    final newAutoResume = p['tracking_auto_resume'] as bool? ?? autoResume;
+
+    if (newDarkMap != darkMap) { darkMap = newDarkMap; changed = true; }
+    if (newAudioFeedback != audioFeedback) { audioFeedback = newAudioFeedback; changed = true; }
+    if (newCountdownTimer != countdownTimer) { countdownTimer = newCountdownTimer; changed = true; }
+    if (newKeepScreenOn != keepScreenOn) { keepScreenOn = newKeepScreenOn; changed = true; }
+    if (newAutoPause != autoPause) { autoPause = newAutoPause; changed = true; }
+    if (newAutoResume != autoResume) { autoResume = newAutoResume; changed = true; }
+
+    if (changed) {
+      setState(() {});
+    }
   }
 
   Future<void> _updateSetting(String key, bool value) async {
@@ -70,17 +86,10 @@ class _ActivitySettingsPageState extends ConsumerState<ActivitySettingsPage> {
   Widget build(BuildContext context) {
     // Listen for backend updates to keep UI in sync
     ref.listen(profileDataProvider, (prev, next) {
-      if (next.hasValue) {
+      if (next.hasValue && next.value != null) {
         _syncFromBackend(next.value!);
       }
     });
-
-    // Initial sync if data is already available
-    final profile = ref.watch(profileDataProvider).valueOrNull;
-    if (profile != null && profile.isNotEmpty) {
-      // Use microtask to avoid building while updating state
-      Future.microtask(() => _syncFromBackend(profile));
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),

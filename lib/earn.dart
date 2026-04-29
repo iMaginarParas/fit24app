@@ -8,6 +8,7 @@ import 'rewards_page.dart';
 import 'shell.dart';
 import 'points_provider.dart';
 import 'step_provider.dart';
+import 'activity.dart';
 
 class EarnPage extends ConsumerStatefulWidget {
   const EarnPage({super.key});
@@ -72,6 +73,8 @@ class _EP extends ConsumerState<EarnPage> {
   Widget build(BuildContext context) {
     final totalPoints = ref.watch(userPointsProvider);
     final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? _todaySteps;
+    // Calculate display points: Total points from backend + unsynced live steps
+    final displayPoints = totalPoints + math.max(0, liveSteps - _todaySteps);
     
     return Scaffold(
       backgroundColor: kBg,
@@ -97,7 +100,7 @@ class _EP extends ConsumerState<EarnPage> {
               physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               slivers: [
                 SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                SliverToBoxAdapter(child: _balanceCard(totalPoints, liveSteps)),
+                SliverToBoxAdapter(child: _balanceCard(displayPoints, liveSteps)),
                 SliverToBoxAdapter(child: _rateCards()),
                 SliverToBoxAdapter(child: SectionHeader('Today\'s Activity')),
                 SliverToBoxAdapter(child: _activityBreakdown(liveSteps)),
@@ -129,7 +132,7 @@ class _EP extends ConsumerState<EarnPage> {
       ]),
       const Spacer(),
       GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityPage())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(

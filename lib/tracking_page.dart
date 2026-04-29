@@ -23,11 +23,20 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
   LatLng? _currentPosition;
   int _countdown = 0;
   Timer? _countdownTimer;
+  bool _useDarkMap = true;
 
   @override
   void initState() {
     super.initState();
+    _loadSettings();
     _determinePosition();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _useDarkMap = prefs.getBool('tracking_dark_map') ?? true;
+    });
   }
 
   void _startWithCountdown(TrackingNotifier notifier, TrackingState tracking) async {
@@ -135,7 +144,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
-              style: _mapStyle,
+              style: _useDarkMap ? _mapStyle : null,
               polylines: {
                 Polyline(
                   polylineId: const PolylineId('route'),

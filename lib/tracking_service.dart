@@ -17,6 +17,7 @@ enum ActivityType { walking, running, cycling }
 class TrackingState {
   final bool isTracking;
   final bool isPaused;
+  final bool isAutoPaused;
   final ActivityType type;
   final List<LatLng> route;
   final double distance;
@@ -27,6 +28,7 @@ class TrackingState {
   TrackingState({
     this.isTracking = false,
     this.isPaused = false,
+    this.isAutoPaused = false,
     this.type = ActivityType.walking,
     this.route = const [],
     this.distance = 0,
@@ -38,6 +40,7 @@ class TrackingState {
   TrackingState copyWith({
     bool? isTracking,
     bool? isPaused,
+    bool? isAutoPaused,
     ActivityType? type,
     List<LatLng>? route,
     double? distance,
@@ -48,6 +51,7 @@ class TrackingState {
     return TrackingState(
       isTracking: isTracking ?? this.isTracking,
       isPaused: isPaused ?? this.isPaused,
+      isAutoPaused: isAutoPaused ?? this.isAutoPaused,
       type: type ?? this.type,
       route: route ?? this.route,
       distance: distance ?? this.distance,
@@ -113,6 +117,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     final useAudio = prefs.getBool('tracking_audio_feedback') ?? true;
     final useWakelock = prefs.getBool('tracking_keep_screen_on') ?? false;
     final useAutoPause = prefs.getBool('tracking_auto_pause') ?? false;
+    final useAutoResume = prefs.getBool('tracking_auto_resume') ?? true;
 
     if (useWakelock) WakelockPlus.enable();
 
@@ -146,14 +151,18 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         distanceFilter: 3,
       ),
     ).listen((pos) {
-      // Auto-Pause Logic
+      // Auto-Pause / Auto-Resume Logic
       if (useAutoPause) {
         if (pos.speed < 0.5 && !state.isPaused) {
-          state = state.copyWith(isPaused: true);
+          state = state.copyWith(isPaused: true, isAutoPaused: true);
           if (useAudio) _voice.speak("Activity auto-paused.");
         } else if (pos.speed >= 0.5 && state.isPaused) {
-          state = state.copyWith(isPaused: false);
-          if (useAudio) _voice.speak("Activity resumed.");
+          // If it was auto-paused, it always resumes.
+          // If it was manually paused, it only resumes if useAutoResume is true.
+          if (state.isAutoPaused || useAutoResume) {
+            state = state.copyWith(isPaused: false, isAutoPaused: false);
+            if (useAudio) _voice.speak("Activity resumed.");
+          }
         }
       }
 
@@ -192,14 +201,14 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
   void pauseTracking() {
     if (state.isTracking && !state.isPaused) {
-      state = state.copyWith(isPaused: true);
+      state = state.copyWith(isPaused: true, isAutoPaused: false);
       _voice.speak("Activity paused.");
     }
   }
 
   void resumeTracking() {
     if (state.isTracking && state.isPaused) {
-      state = state.copyWith(isPaused: false);
+      state = state.copyWith(isPaused: false, isAutoPaused: false);
       _voice.speak("Resuming activity.");
     }
   }
@@ -242,7 +251,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       } catch (_) {}
     }
     
-    state = state.copyWith(isTracking: false, isPaused: false);
+    state = state.copyWith(isTracking: false, isPaused: false, isAutoPaused: false);
   }
 
   Future<void> _syncSession(Map<String, dynamic> session, WidgetRef ref) async {
