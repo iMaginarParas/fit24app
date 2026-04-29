@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'active_session_page.dart';
 import 'tracking_service.dart';
+import 'activity_settings_page.dart';
 import 'activity.dart';
 import 'profile.dart';
 import 'shell.dart';
@@ -18,11 +21,47 @@ class TrackingPage extends ConsumerStatefulWidget {
 class _TrackingPageState extends ConsumerState<TrackingPage> {
   GoogleMapController? _mapController;
   LatLng? _currentPosition;
+  int _countdown = 0;
+  Timer? _countdownTimer;
 
   @override
   void initState() {
     super.initState();
     _determinePosition();
+  }
+
+  void _startWithCountdown(TrackingNotifier notifier, TrackingState tracking) async {
+    final prefs = await SharedPreferences.getInstance();
+    final useCountdown = prefs.getBool('tracking_countdown_timer') ?? false;
+
+    if (!useCountdown) {
+      _startFinal(notifier, tracking);
+      return;
+    }
+
+    setState(() => _countdown = 3);
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_countdown == 1) {
+        t.cancel();
+        setState(() => _countdown = 0);
+        _startFinal(notifier, tracking);
+      } else {
+        setState(() => _countdown--);
+      }
+    });
+  }
+
+  void _startFinal(TrackingNotifier notifier, TrackingState tracking) async {
+    await notifier.startTracking(tracking.type);
+    if (mounted) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionPage()));
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _determinePosition() async {
@@ -177,6 +216,23 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
           ),
 
 
+          // ── Countdown Overlay ──────────────────────────────────────────────
+          if (_countdown > 0)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.8),
+                child: Center(
+                  child: Text(
+                    '$_countdown',
+                    style: const TextStyle(
+                      color: kTeal,
+                      fontSize: 160,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -236,9 +292,8 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
       GestureDetector(
         onTap: () async {
           if (!tracking.isTracking) {
-            await notifier.startTracking(tracking.type);
-          }
-          if (mounted) {
+            _startWithCountdown(notifier, tracking);
+          } else {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionPage()));
           }
         },
@@ -253,7 +308,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
         ),
       ),
       GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivitySettingsPage())),
         child: _subIcon(Icons.settings_outlined, 'Settings'),
       ),
     ],

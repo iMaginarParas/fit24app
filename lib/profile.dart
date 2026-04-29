@@ -33,11 +33,30 @@ final profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((re
   return {};
 });
 
-class ProfilePage extends ConsumerWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends ConsumerState<ProfilePage> {
+  late ScrollController _sc;
+
+  @override
+  void initState() {
+    super.initState();
+    _sc = ScrollController()..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _sc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final phone = ref.watch(authProvider).valueOrNull?.phone ?? '';
     final profileAsync = ref.watch(profileDataProvider);
 
@@ -45,85 +64,88 @@ class ProfilePage extends ConsumerWidget {
       backgroundColor: kBg,
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
-        error: (_, __) => _body(context, ref, phone, {}),
-        data: (p) => _body(context, ref, phone, p),
+        error: (_, __) => _body(context, phone, {}),
+        data: (p) => _body(context, phone, p),
       ),
     );
   }
 
-  Widget _body(BuildContext ctx, WidgetRef ref, String phone, Map<String, dynamic> p) => RefreshIndicator(
-    color: kTeal,
-    backgroundColor: const Color(0xFF1A1A1A),
-    strokeWidth: 3,
-    onRefresh: () async {
-      // 1. Sync steps to backend
-      try {
-        final method = MethodChannel('com.fit24app/steps');
-        final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
-        final stats = ref.read(profileStatsProvider).valueOrNull;
-        final currentSteps = stats?.totalSteps ?? 0; // Note: totalSteps is 30-day sum, but for today check we just want to avoid syncing if local is 0 or suspiciously low.
-        // Actually, since profile uses totalSteps (30 days), comparing localSteps (today) to it is not perfect.
-        // But the main goal is to avoid syncing 0 or lower values for today.
-        if (localSteps > 0) {
-          await ref.read(apiServiceProvider).syncSteps(localSteps);
-        }
-      } catch (_) {}
+  Widget _body(BuildContext ctx, String phone, Map<String, dynamic> p) {
+    return RefreshIndicator(
+      color: kTeal,
+      backgroundColor: const Color(0xFF111111),
+      strokeWidth: 3,
+      displacement: 40,
+      onRefresh: () async {
+        try {
+          final method = MethodChannel('com.fit24app/steps');
+          final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+          if (localSteps > 0) {
+            await ref.read(apiServiceProvider).syncSteps(localSteps);
+          }
+        } catch (_) {}
 
-      // 2. Invalidate and reload
-      ref.invalidate(profileDataProvider);
-      ref.invalidate(profileStatsProvider);
-      ref.invalidate(userPointsProvider);
-      await ref.read(profileDataProvider.future);
-      await ref.read(profileStatsProvider.future);
-    },
-    child: CustomScrollView(
-      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-      slivers: [
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _StickyHeaderDelegate(
-            child: Container(
-              color: kBg.withOpacity(0.9),
-              padding: EdgeInsets.only(top: MediaQuery.of(ctx).padding.top),
-              child: _topHeader(ctx, ref, p),
+        ref.invalidate(profileDataProvider);
+        ref.invalidate(profileStatsProvider);
+        ref.invalidate(userPointsProvider);
+        await ref.read(profileDataProvider.future);
+        await ref.read(profileStatsProvider.future);
+      },
+      child: CustomScrollView(
+          controller: _sc,
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyHeaderDelegate(
+                child: Container(
+                  color: kBg.withOpacity(0.9),
+                  padding: EdgeInsets.only(top: MediaQuery.of(ctx).padding.top),
+                  child: _topHeader(ctx, p),
+                ),
+              ),
             ),
-          ),
+            SliverToBoxAdapter(child: _heroProfile(ctx, phone, p)),
+            SliverToBoxAdapter(child: _achievementsSection()),
+            SliverToBoxAdapter(child: _statsGrid()),
+            SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
+              _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
+                () => _openEditSheet(ctx, p)),
+              _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', 
+                () => _showPlaceholder(ctx, 'Privacy Policy')),
+            ])),
+            SliverToBoxAdapter(child: _settingsGroup('Permissions & Data', [
+              _settingTile(Icons.favorite_rounded, kPink, 'Health Connect', 'Sync your fitness history', 
+                () => _manageHealthConnect(ctx)),
+              _settingTile(Icons.notifications_none_rounded, kBlue, 'Notifications', 'Manage alerts', 
+                () => _manageNotifications(ctx)),
+            ])),
+            SliverToBoxAdapter(child: _settingsGroup('Support & Feedback', [
+              _settingTile(Icons.help_outline_rounded, Colors.white38, 'Help Center', '', 
+                () => _showPlaceholder(ctx, 'Help Center')),
+              _settingTile(Icons.star_border_rounded, kAmber, 'Rate Fit24', 'Version 1.0.2', 
+                () => _showPlaceholder(ctx, 'App Store Rating')),
+              _settingTile(Icons.logout_rounded, kCoral, 'Sign Out', '', () => _signOut(ctx)),
+              _settingTile(Icons.delete_forever_rounded, Colors.white24, 'Delete Account', 'Permanently remove your data', _deleteAccount),
+            ])),
+            const SliverToBoxAdapter(child: SizedBox(height: 120)),
+          ],
         ),
-        SliverToBoxAdapter(child: _heroProfile(ctx, ref, phone, p)),
-        SliverToBoxAdapter(child: _achievementsSection()),
-        SliverToBoxAdapter(child: _statsGrid(ref)),
-        SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
-          _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
-            () => _openEditSheet(ctx, ref, p)),
-          _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', null),
-        ])),
-        SliverToBoxAdapter(child: _settingsGroup('Permissions & Data', [
-          _settingTile(Icons.favorite_rounded, kPink, 'Health Connect', 'Sync your fitness history', 
-            () => _manageHealthConnect(ctx)),
-          _settingTile(Icons.notifications_none_rounded, kBlue, 'Notifications', 'Manage alerts', 
-            () => _manageNotifications(ctx)),
-        ])),
-        SliverToBoxAdapter(child: _settingsGroup('Support & Feedback', [
-          _settingTile(Icons.help_outline_rounded, Colors.white38, 'Help Center', '', null),
-          _settingTile(Icons.star_border_rounded, kAmber, 'Rate Fit24', 'Version 1.0.2', null),
-          _settingTile(Icons.logout_rounded, kCoral, 'Sign Out', '', () => _signOut(ctx, ref)),
-        ])),
-        const SliverToBoxAdapter(child: SizedBox(height: 120)),
-      ],
-    ),
-  );
+    );
+  }
 
-  Widget _topHeader(BuildContext ctx, WidgetRef ref, Map<String, dynamic> p) => Padding(
+
+  Widget _topHeader(BuildContext ctx, Map<String, dynamic> p) => Padding(
     padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
     child: Row(children: [
       const Text('My Profile', style: TextStyle(
           fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
       const Spacer(),
-      _circleBtn(Icons.edit_note_rounded, () => _openEditSheet(ctx, ref, p)),
+      _circleBtn(Icons.edit_note_rounded, () => _openEditSheet(ctx, p)),
     ]),
   );
 
-  Widget _heroProfile(BuildContext ctx, WidgetRef ref, String phone, Map<String, dynamic> p) {
+  Widget _heroProfile(BuildContext ctx, String phone, Map<String, dynamic> p) {
     final name = p['name'] as String? ?? 'Elite User';
     final city = p['city'] as String? ?? 'San Francisco, CA';
     
@@ -131,7 +153,7 @@ class ProfilePage extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       child: Column(children: [
         GestureDetector(
-          onTap: () => _pickAndUploadImage(ctx, ref),
+          onTap: () => _pickAndUploadImage(ctx),
           child: Stack(alignment: Alignment.center, children: [
             Container(
               width: 110, height: 110,
@@ -159,7 +181,7 @@ class ProfilePage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         GestureDetector(
-          onTap: () => _openEditSheet(ctx, ref, p),
+          onTap: () => _openEditSheet(ctx, p),
           child: Text(name, style: const TextStyle(
               fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
         ),
@@ -247,7 +269,7 @@ class ProfilePage extends ConsumerWidget {
     ]),
   );
 
-  Widget _statsGrid(WidgetRef ref) {
+  Widget _statsGrid() {
     final statsAsync = ref.watch(profileStatsProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -342,7 +364,7 @@ class ProfilePage extends ConsumerWidget {
     Navigator.push(ctx, MaterialPageRoute(builder: (_) => const NotificationsSettingsPage()));
   }
 
-  Future<void> _pickAndUploadImage(BuildContext ctx, WidgetRef ref) async {
+  Future<void> _pickAndUploadImage(BuildContext ctx) async {
     try {
       final picker = ImagePicker();
       final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -387,7 +409,7 @@ class ProfilePage extends ConsumerWidget {
     ),
   );
 
-  void _openEditSheet(BuildContext ctx, WidgetRef ref, Map<String, dynamic> p) {
+  void _openEditSheet(BuildContext ctx, Map<String, dynamic> p) {
     showModalBottomSheet(
       context: ctx,
       isScrollControlled: true,
@@ -396,7 +418,7 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  Future<void> _signOut(BuildContext ctx, WidgetRef ref) async {
+  Future<void> _signOut(BuildContext ctx) async {
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
@@ -419,6 +441,53 @@ class ProfilePage extends ConsumerWidget {
       await prefs.remove('profile_data');
       await ref.read(authProvider.notifier).signOut();
     }
+  }
+
+  Future<void> _deleteAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Delete Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        content: const Text('Are you absolutely sure? This will permanently delete all your fitness data, rewards, and profile. This action cannot be undone.', 
+          style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), 
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.4)))),
+          TextButton(onPressed: () => Navigator.pop(context, true), 
+            child: const Text('DELETE', style: TextStyle(color: kCoral, fontWeight: FontWeight.w900))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      try {
+        final api = ref.read(apiServiceProvider);
+        await api.deleteAccount();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear(); // Clear all local data
+        await ref.read(authProvider.notifier).signOut();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
+  void _showPlaceholder(BuildContext ctx, String feature) {
+    showDialog(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        backgroundColor: kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(feature, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('The $feature module is coming in the next update!', style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK', style: TextStyle(color: kTeal))),
+        ],
+      ),
+    );
   }
 }
 

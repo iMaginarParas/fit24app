@@ -59,7 +59,7 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> {
             child: Container(color: Colors.black.withOpacity(0.7)),
           ),
           CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
               if (_loading)

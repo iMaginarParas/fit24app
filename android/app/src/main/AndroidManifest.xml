@@ -80,7 +80,7 @@
         <!-- foregroundServiceType="health" is REQUIRED on Android 14+ -->
         <service
             android:name=".StepCounterService"
-            android:foregroundServiceType="health"
+            android:foregroundServiceType="health|location"
             android:exported="false"/>
 
         <!-- Restart service after device reboot -->

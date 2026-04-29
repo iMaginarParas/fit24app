@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'notification_service.dart';
 import 'shell.dart';
 
 class NotificationsSettingsPage extends ConsumerStatefulWidget {
@@ -45,6 +46,13 @@ class _NotificationsSettingsPageState extends ConsumerState<NotificationsSetting
   Future<void> _toggle(String key, bool val) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, val);
+    
+    // Sync with Notification Service
+    final notif = NotificationService();
+    if (key == 'notif_reminders' || key == 'notif_all') {
+      await notif.scheduleDailyReminder(100, 'Morning Walk', 'Start your day with a 15-minute walk!', 8, 0);
+    }
+    
     _loadPrefs();
   }
 

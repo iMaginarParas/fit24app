@@ -29,6 +29,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   int _totalSteps = 0;
   ActivityType? _selectedType;
   int? _selIdx;
+  late ScrollController _sc;
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         if (now != _currentTime) setState(() => _currentTime = now);
       }
     });
+    _sc = ScrollController()..addListener(() => setState(() {}));
     _loadData();
     _loadSessions();
   }
@@ -103,6 +105,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   @override
   void dispose() { 
     _tab.dispose(); 
+    _sc.dispose();
     _clockTimer?.cancel();
     super.dispose(); 
   }
@@ -114,60 +117,55 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/activity_bg.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.5)),
-          ),
-          AbsorbPointer(
-            absorbing: _loading,
-            child: RefreshIndicator(
-              color: kGreen,
-              backgroundColor: kCard,
-            onRefresh: () async {
-                // Sync steps first
-                try {
-                  final method = MethodChannel('com.fit24app/steps');
-                  final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
-                  final currentSteps = _history.isNotEmpty ? (_history.first['steps'] as int? ?? 0) : 0;
-                  if (localSteps > currentSteps) {
-                    await ref.read(apiServiceProvider).syncSteps(localSteps);
-                  }
-                } catch (_) {}
-                
-                await _loadData();
-                await _loadSessions();
-              },
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                slivers: [
-                  SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                  SliverToBoxAdapter(child: _periodTabs()),
-                  SliverToBoxAdapter(child: _mainStepCard()),
-                  SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
-                  SliverToBoxAdapter(child: _modeTotals()),
-                  SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
-                  SliverToBoxAdapter(child: _barChart()),
-                  SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
-                  SliverToBoxAdapter(child: _sessionsList()),
-                  SliverToBoxAdapter(child: SectionHeader('Activity Log')),
-                  SliverToBoxAdapter(child: _logList()),
-                  const SliverToBoxAdapter(child: SizedBox(height: 110)),
-                ],
+      body: RefreshIndicator(
+        color: kGreen,
+        backgroundColor: const Color(0xFF111111),
+        strokeWidth: 3,
+        displacement: 40,
+        onRefresh: () async {
+          try {
+            final method = MethodChannel('com.fit24app/steps');
+            final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+            final currentSteps = _history.isNotEmpty ? (_history.first['steps'] as int? ?? 0) : 0;
+            if (localSteps > currentSteps) {
+              await ref.read(apiServiceProvider).syncSteps(localSteps);
+            }
+          } catch (_) {}
+          await _loadData();
+          await _loadSessions();
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/activity_bg.png',
+                fit: BoxFit.cover,
               ),
             ),
-          ),
-        ],
+            Positioned.fill(
+              child: Container(color: Colors.black.withOpacity(0.5)),
+            ),
+            CustomScrollView(
+              controller: _sc,
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                SliverToBoxAdapter(child: _periodTabs()),
+                SliverToBoxAdapter(child: _mainStepCard()),
+                SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
+                SliverToBoxAdapter(child: _modeTotals()),
+                SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
+                SliverToBoxAdapter(child: _barChart()),
+                SliverToBoxAdapter(child: SectionHeader('Activity Log')),
+                SliverToBoxAdapter(child: _logList()),
+                const SliverToBoxAdapter(child: SizedBox(height: 110)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
-
   Widget _header() => Padding(
     padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
     child: Row(children: [
@@ -212,26 +210,28 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         ),
       ),
       const SizedBox(width: 10),
-      Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: kCard, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: kBorder),
+      GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsSettingsPage())),
+        child: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: kCard, borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: kBorder),
+          ),
+          child: Icon(Icons.notifications_outlined,
+              size: 20, color: Colors.white.withOpacity(0.5)),
         ),
-        child: Icon(Icons.notifications_outlined,
-            size: 20, color: Colors.white.withOpacity(0.5)),
       ),
     ]),
   );
 
    Widget _modeTotals() {
-    double walkDist = 0, runDist = 0, cycleDist = 0;
-    int walkDur = 0, runDur = 0, cycleDur = 0;
+    double walkDist = 0, walkDur = 0, runDist = 0, runDur = 0, cycleDist = 0, cycleDur = 0;
 
     for (var s in _sessions) {
       final type = ActivityType.values[s['type'] as int];
-      final dist = s['distance'] as double;
-      final dur = s['duration'] as int;
+      final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
+      final dur = (s['duration'] as num?)?.toInt() ?? 0;
       if (type == ActivityType.walking) { walkDist += dist; walkDur += dur; }
       else if (type == ActivityType.running) { runDist += dist; runDur += dur; }
       else if (type == ActivityType.cycling) { cycleDist += dist; cycleDur += dur; }
@@ -241,11 +241,11 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(children: [
-        _modeCard('WALK', walkDist, walkDur, Icons.directions_walk_rounded, kTeal),
+        _modeCard('WALK', walkDist, walkDur.toInt(), Icons.directions_walk_rounded, kTeal),
         const SizedBox(width: 12),
-        _modeCard('RUN', runDist, runDur, Icons.directions_run_rounded, kCoral),
+        _modeCard('RUN', runDist, runDur.toInt(), Icons.directions_run_rounded, kCoral),
         const SizedBox(width: 12),
-        _modeCard('CYCLE', cycleDist, cycleDur, Icons.directions_bike_rounded, kAmber),
+        _modeCard('CYCLE', cycleDist, cycleDur.toInt(), Icons.directions_bike_rounded, kAmber),
       ]),
     );
   }
@@ -287,7 +287,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         itemBuilder: (context, i) {
           final s = filtered[i];
           final type = ActivityType.values[s['type'] as int];
-          final dist = s['distance'] as double;
+          final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
           final date = DateTime.parse(s['date']);
           
           return GestureDetector(
@@ -354,7 +354,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
 
   Widget _mainStepCard() {
     final todayLog = _history.isNotEmpty ? _history.first : null;
-    final dailySteps = todayLog != null ? todayLog['steps'] as int : 0;
+    final dailySteps = todayLog != null ? (todayLog['steps'] as num?)?.toInt() ?? 0 : 0;
     
     int filteredSteps = 0;
     double filteredDist = 0;
@@ -362,19 +362,17 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     
-    // 1. Accumulate data from matching sessions
     for (var s in _sessions) {
       if (s['date'].startsWith(todayStr)) {
         final type = ActivityType.values[s['type'] as int];
         if (_selectedType == null || _selectedType == type) {
-          filteredSteps += (s['steps'] as int? ?? 0);
-          filteredDist += (s['distance'] as double? ?? 0);
-          filteredCal += (s['calories'] as int? ?? 0);
+          filteredSteps += (s['steps'] as num?)?.toInt() ?? 0;
+          filteredDist += (s['distance'] as num?)?.toDouble() ?? 0.0;
+          filteredCal += (s['calories'] as num?)?.toInt() ?? 0;
         }
       }
     }
 
-    // 2. Add background daily steps only for All or Walking
     if (_selectedType == null || _selectedType == ActivityType.walking) {
       filteredSteps += dailySteps;
       filteredDist += (dailySteps * 0.75); // meters
@@ -400,7 +398,6 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           border: Border.all(color: kBorder),
         ),
         child: Row(children: [
-          // Left: step/distance ring
           SizedBox(
             width: 130, height: 130,
             child: Stack(alignment: Alignment.center, children: [
@@ -415,9 +412,9 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             ]),
           ),
           const SizedBox(width: 20),
-          // Right: metrics
           Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             _sideMetric('Real Time', _currentTime, 'Clock', Icons.access_time_rounded, kBlue),
             const SizedBox(height: 14),
             _sideMetric('Calories', '$totalCal', 'Kcal', Icons.local_fire_department_rounded, kCoral),
@@ -453,74 +450,26 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       ]),
     ]);
 
-  Widget _healthRow() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-    child: Row(children: [
-      Expanded(child: _healthCard(
-        'Water', '1.8 L', Icons.water_drop_rounded, kBlue,
-        widget: _waterCircle())),
-    ]),
-  );
-
-  Widget _healthCard(String label, String val, IconData icon, Color color,
-      {Widget? widget}) =>
-    Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kCard, borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(
-              fontSize: 12, color: Colors.white.withOpacity(0.5))),
-        ]),
-        const SizedBox(height: 8),
-        Text(val, style: TextStyle(
-            fontSize: 20, fontWeight: FontWeight.w900, color: color)),
-        const SizedBox(height: 8),
-        if (widget != null) widget,
-      ]),
-    );
-
-
-
-  Widget _waterCircle() => Center(child: SizedBox(
-    width: 60, height: 60,
-    child: Stack(alignment: Alignment.center, children: [
-      CustomPaint(size: const Size(60, 60),
-          painter: _ArcPainter(0.54, kBlue)),
-      const Text('54%', style: TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-    ]),
-  ));
-
-   Widget _barChart() {
+  Widget _barChart() {
     final week = _history.take(7).toList();
     if (week.isEmpty) return const SizedBox();
     
-    // Reverse to show Mon -> Sun or chronological
     final sortedWeek = week.reversed.toList();
     
-    // Calculate total steps (daily + activity) for each day in the chart
     final List<Map<String, dynamic>> chartData = [];
     for (var d in sortedWeek) {
       final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(d['log_date']));
       int totalSteps = 0;
       
-      // Include background steps only for All or Walking
       if (_selectedType == null || _selectedType == ActivityType.walking) {
-        totalSteps += (d['steps'] as int? ?? 0);
+        totalSteps += (d['steps'] as num?)?.toInt() ?? 0;
       }
       
-      // Add sessions for this day and type
       for (var s in _sessions) {
         if (s['date'].startsWith(dateStr)) {
           final type = ActivityType.values[s['type'] as int];
           if (_selectedType == null || _selectedType == type) {
-            totalSteps += (s['steps'] as int? ?? 0);
+            totalSteps += (s['steps'] as num?)?.toInt() ?? 0;
           }
         }
       }
@@ -612,9 +561,9 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         children: _history.map((d) {
           final date = DateTime.parse(d['log_date']);
           final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
-          final steps = d['steps'] as int;
-          final cal = d['calories'] as int;
-          final dist = (d['distance_m'] as int) / 1000.0;
+          final steps = (d['steps'] as num?)?.toInt() ?? 0;
+          final cal = (d['calories'] as num?)?.toInt() ?? 0;
+          final dist = ((d['distance_m'] as num?)?.toDouble() ?? 0.0) / 1000.0;
           
           String dayLabel = DateFormat('MMM d').format(date);
           if (isToday) dayLabel = 'Today';
@@ -670,20 +619,6 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       ]),
     );
 
-  PopupMenuItem<ActivityType> _menuItem(ActivityType t, String label) => PopupMenuItem(
-    value: t,
-    child: Row(children: [
-      Icon(t == ActivityType.walking ? Icons.directions_walk_rounded : 
-           t == ActivityType.running ? Icons.directions_run_rounded : 
-           Icons.directions_bike_rounded, size: 18, color: _selectedType == t ? kGreen : Colors.white.withOpacity(0.5)),
-      const SizedBox(width: 12),
-      Text(label, style: TextStyle(
-        color: _selectedType == t ? kGreen : Colors.white,
-        fontWeight: _selectedType == t ? FontWeight.w800 : FontWeight.w500,
-      )),
-    ]),
-  );
-
   String _titleOf(ActivityType t) => t == ActivityType.walking ? 'Walking Activity' : 
                                     t == ActivityType.running ? 'Running Activity' : 
                                     'Cycling Activity';
@@ -713,22 +648,3 @@ class _MiniRing extends CustomPainter {
   }
   @override bool shouldRepaint(_MiniRing o) => o.steps != steps;
 }
-
-class _ArcPainter extends CustomPainter {
-  final double pct; final Color color;
-  _ArcPainter(this.pct, this.color);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2 - 5;
-    final rect = Rect.fromCircle(center: c, radius: r);
-    canvas.drawArc(rect, 0, 2 * math.pi, false,
-        Paint()..style = PaintingStyle.stroke..strokeWidth = 7
-          ..color = color.withOpacity(0.1));
-    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * pct, false,
-        Paint()..style = PaintingStyle.stroke..strokeWidth = 7
-          ..strokeCap = StrokeCap.round..color = color);
-  }
-  @override bool shouldRepaint(_) => false;
-}
-

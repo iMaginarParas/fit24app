@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'shell.dart';
 import 'auth.dart';
+import 'notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,12 @@ Future<void> main() async {
     systemStatusBarContrastEnforced: false,
   ));
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  
+  final notif = NotificationService();
+  await notif.init();
+  // Schedule a default daily reminder at 8:00 AM
+  await notif.scheduleDailyReminder(100, 'Morning Walk', 'Start your day with a 15-minute walk!', 8, 0);
+
   runApp(const ProviderScope(child: Fit24App()));
 }
 

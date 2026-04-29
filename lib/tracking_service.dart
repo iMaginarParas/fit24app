@@ -7,8 +7,10 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'voice_service.dart';
 import 'api_service.dart';
+import 'profile.dart';
 
 enum ActivityType { walking, running, cycling }
 
@@ -106,10 +108,20 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       return;
     }
 
-    state = TrackingState(isTracking: true, type: type);
-    await _voice.speak("Starting ${type.name} activity. Let's get moving!");
+    // Load Settings from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final useAudio = prefs.getBool('tracking_audio_feedback') ?? true;
+    final useWakelock = prefs.getBool('tracking_keep_screen_on') ?? false;
+    final useAutoPause = prefs.getBool('tracking_auto_pause') ?? false;
 
-    // Capture initial position immediately
+    if (useWakelock) WakelockPlus.enable();
+
+    state = TrackingState(isTracking: true, type: type);
+    if (useAudio) {
+      await _voice.speak("Starting ${type.name} activity. Let's get moving!");
+    }
+
+    // Capture initial position
     try {
       final startPos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       final initialLatLng = LatLng(startPos.latitude, startPos.longitude);
@@ -134,6 +146,17 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         distanceFilter: 3,
       ),
     ).listen((pos) {
+      // Auto-Pause Logic
+      if (useAutoPause) {
+        if (pos.speed < 0.5 && !state.isPaused) {
+          state = state.copyWith(isPaused: true);
+          if (useAudio) _voice.speak("Activity auto-paused.");
+        } else if (pos.speed >= 0.5 && state.isPaused) {
+          state = state.copyWith(isPaused: false);
+          if (useAudio) _voice.speak("Activity resumed.");
+        }
+      }
+
       if (state.isPaused) return;
 
       final latLng = LatLng(pos.latitude, pos.longitude);
@@ -144,6 +167,13 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         final d = ll.Distance().as(ll.LengthUnit.Meter, 
           ll.LatLng(last.latitude, last.longitude), 
           ll.LatLng(latLng.latitude, latLng.longitude));
+        
+        // Voice milestones (every 1km)
+        if (useAudio && (newDistance + d) ~/ 1000 > newDistance ~/ 1000) {
+          final totalKm = ((newDistance + d) / 1000).toStringAsFixed(1);
+          _voice.speak("Distance: $totalKm kilometers.");
+        }
+
         newDistance += d;
       }
       
@@ -175,7 +205,14 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   }
 
   Future<void> stopTracking(WidgetRef ref) async {
-    await _voice.speak("Activity stopped. Well done on your progress!");
+    final prefs = await SharedPreferences.getInstance();
+    final useAudio = prefs.getBool('tracking_audio_feedback') ?? true;
+
+    if (useAudio) {
+      await _voice.speak("Activity stopped. Well done on your progress!");
+    }
+
+    WakelockPlus.disable();
 
     _sub?.cancel();
     _stepSub?.cancel();
@@ -201,12 +238,42 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         await prefs.setStringList('gps_sessions', sessionsJson);
         
         // SYNC TO BACKEND
-        final api = ref.read(apiServiceProvider);
-        await api.saveSession(session);
+        await _syncSession(session, ref);
       } catch (_) {}
     }
     
     state = state.copyWith(isTracking: false, isPaused: false);
+  }
+
+  Future<void> _syncSession(Map<String, dynamic> session, WidgetRef ref) async {
+    final api = ref.read(apiServiceProvider);
+    final prefs = await SharedPreferences.getInstance();
+    
+    try {
+      await api.saveSession(session);
+      // If success, check if there are other pending sessions to clear
+      await _clearOfflineQueue(api, prefs);
+    } catch (e) {
+      // If fails, add to offline queue
+      final queue = prefs.getStringList('offline_sessions') ?? [];
+      queue.add(jsonEncode(session));
+      await prefs.setStringList('offline_sessions', queue);
+    }
+  }
+
+  Future<void> _clearOfflineQueue(ApiService api, SharedPreferences prefs) async {
+    final queue = prefs.getStringList('offline_sessions') ?? [];
+    if (queue.isEmpty) return;
+
+    final remaining = <String>[];
+    for (var sJson in queue) {
+      try {
+        await api.saveSession(jsonDecode(sJson));
+      } catch (_) {
+        remaining.add(sJson);
+      }
+    }
+    await prefs.setStringList('offline_sessions', remaining);
   }
 
   int calculateCalories(double dist, ActivityType type) {

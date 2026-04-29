@@ -20,7 +20,7 @@ class RewardsPage extends StatelessWidget {
             child: Container(color: Colors.black.withOpacity(0.75)),
           ),
           CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header(context))),
               SliverPadding(

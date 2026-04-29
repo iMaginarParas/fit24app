@@ -19,26 +19,30 @@ class HealthService {
       final ok = await h.requestAuthorization(_types);
       if (ok) {
         final now = DateTime.now(); 
-        final data = <String, int>{};
+        final stepData = <String, int>{};
         
         // Fetch 30 days of history
         for (int i = 0; i <= 30; i++) {
           final s = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
           final e = i == 0 ? now : s.add(const Duration(days: 1));
+          
           try {
-            final v = await h.getTotalStepsInInterval(s, e);
-            if (v != null && v > 0) {
-              data[DateFormat('yyyy-MM-dd').format(s)] = v;
+            // 1. Steps
+            final steps = await h.getTotalStepsInInterval(s, e);
+            if (steps != null && steps > 0) {
+              stepData[DateFormat('yyyy-MM-dd').format(s)] = steps;
             }
+
+            // 2. Calories & Distance (Optional: sync to backend stats)
+            // For now we prioritize steps for the main history table
           } catch (_) {}
         }
 
-        if (data.isNotEmpty) {
-          await _method.invokeMethod('saveHistory', {'data': data});
+        if (stepData.isNotEmpty) {
+          await _method.invokeMethod('saveHistory', {'data': stepData});
         }
 
-        // Also sync today's latest specifically
-        await syncCurrentSteps();
+        await syncCurrentStats();
         
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('hc_requested', true);
@@ -48,7 +52,7 @@ class HealthService {
     return false;
   }
 
-  static Future<void> syncCurrentSteps() async {
+  static Future<void> syncCurrentStats() async {
     try {
       final h = Health();
       await h.configure();
@@ -57,14 +61,32 @@ class HealthService {
         final now = DateTime.now();
         final start = DateTime(now.year, now.month, now.day);
         
-        // We prioritize steps for the main counter
+        // 1. Steps
         final steps = await h.getTotalStepsInInterval(start, now);
         if (steps != null && steps > 0) {
           await _method.invokeMethod('updateTodaySteps', {'steps': steps});
         }
         
-        // Distance and calories can be fetched if needed for other UI elements
-        // final dist = await h.getTotalStepsInInterval(start, now, dataType: HealthDataType.DISTANCE);
+        // 2. Distance
+        final distPoints = await h.getHealthDataFromTypes(
+          startTime: start, endTime: now, types: [HealthDataType.DISTANCE_DELTA]);
+        double totalDist = 0;
+        for (var p in distPoints) {
+          if (p.value is NumericHealthValue) totalDist += (p.value as NumericHealthValue).numericValue;
+        }
+
+        // 3. Calories
+        final calPoints = await h.getHealthDataFromTypes(
+          startTime: start, endTime: now, types: [HealthDataType.ACTIVE_ENERGY_BURNED]);
+        double totalCals = 0;
+        for (var p in calPoints) {
+          if (p.value is NumericHealthValue) totalCals += (p.value as NumericHealthValue).numericValue;
+        }
+
+        // We can save these to SharedPreferences for the UI to display "Health Data" sources
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('hc_today_distance', totalDist);
+        await prefs.setDouble('hc_today_calories', totalCals);
       }
     } catch (_) {}
   }

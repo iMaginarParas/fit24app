@@ -17,6 +17,8 @@ import 'profile_stats_provider.dart';
 import 'points_provider.dart';
 import 'shell.dart';
 import 'tracking_page.dart';
+import 'notification_service.dart';
+import 'activity.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
 const _events = EventChannel('com.fit24app/steps_stream');
@@ -54,6 +56,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   Timer? _syncTimer;
   Timer? _healthSyncTimer;
   int _lastSynced = 0;
+  late ScrollController _sc;
   static const kGoal = 10000;
 
   // BOLD THEME COLORS
@@ -68,6 +71,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
         duration: const Duration(milliseconds: 2000))..repeat(reverse: true);
     _spin = AnimationController(vsync: this,
         duration: const Duration(seconds: 10))..repeat();
+    _sc = ScrollController()..addListener(() => setState(() {}));
     _checkPerm();
     Future.microtask(() => ref.read(userPointsProvider.notifier).refresh());
   }
@@ -95,9 +99,22 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   void _startTracking() {
     _sub = _events.receiveBroadcastStream().listen((v) {
       if (mounted) {
-        setState(() => _today = v as int);
-        _animTo(v as int);
-        if ((v as int) - _lastSynced > 100) _syncToBackend();
+        final newSteps = v as int;
+        
+        // Goal Notification Logic
+        final profile = ref.read(profileDataProvider).valueOrNull;
+        final goal = profile?['daily_goal'] ?? 8000;
+        if (newSteps >= goal && _today < goal && _today > 0) {
+          NotificationService().showNotification(
+            id: 200,
+            title: 'Goal Achieved! 🏆',
+            body: "Congratulations! You've reached your daily goal of $goal steps.",
+          );
+        }
+
+        setState(() => _today = newSteps);
+        _animTo(newSteps);
+        if (newSteps - _lastSynced > 100) _syncToBackend();
       }
     });
     
@@ -105,10 +122,10 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _initSteps();
 
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) => _syncToBackend());
-    _healthSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) => HealthService.syncCurrentSteps());
+    _healthSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) => HealthService.syncCurrentStats());
     
     // Initial health sync
-    HealthService.syncCurrentSteps();
+    HealthService.syncCurrentStats();
     _checkDailyPointSync();
   }
 
@@ -210,6 +227,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _pulse.dispose(); _spin.dispose();
+    _sc.dispose();
     _tick?.cancel(); _sub?.cancel();
     _syncTimer?.cancel();
     _healthSyncTimer?.cancel();
@@ -218,29 +236,14 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Ultra-Premium Dark Background with Image
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Image.asset(
-            'assets/images/home_bg.png',
-            fit: BoxFit.cover,
-          ),
-        ),
-        Positioned.fill(
-          child: Container(
-            color: Colors.black.withOpacity(0.6), // Darken the image slightly
-          ),
-        ),
-        Positioned.fill(
-          child: switch (_s) {
-            _S.perm    => _permView(),
-            _S.hc      => _hcView(),
-            _S.loading => _loadView(),
-            _S.ready   => _dashboard(),
-          },
-        ),
-      ],
+    return Scaffold(
+      backgroundColor: kBg,
+      body: switch (_s) {
+        _S.perm    => _permView(),
+        _S.hc      => _hcView(),
+        _S.loading => _loadView(),
+        _S.ready   => _dashboard(),
+      },
     );
   }
 
@@ -395,48 +398,58 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     final p = profileAsync.valueOrNull ?? {};
     final name = p['name'] as String? ?? 'User';
 
+
+
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: AbsorbPointer(
-        absorbing: _refreshing,
-        child: RefreshIndicator(
-          color: cCyan,
-          backgroundColor: const Color(0xFF1A1A1A),
-          strokeWidth: 3,
-          onRefresh: () async {
-            if (mounted) setState(() => _refreshing = true);
-            try {
-              final method = MethodChannel('com.fit24app/steps');
-              final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
-              final currentSteps = _hist.isNotEmpty ? (_hist.values.first) : 0; 
-              if (localSteps > currentSteps) {
-                await ref.read(apiServiceProvider).syncSteps(localSteps);
-              }
-            } catch (_) {}
-  
-            // 2. Invalidate global providers
-            ref.invalidate(profileDataProvider);
-            ref.invalidate(profileStatsProvider);
-            ref.invalidate(userPointsProvider);
-  
-            // 3. Reload local state
-            await _initSteps();
-            await ref.read(userPointsProvider.notifier).refresh();
-            await ref.read(profileStatsProvider.future);
-            if (mounted) setState(() => _refreshing = false);
-          },
-          child: CustomScrollView(
-            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            slivers: [
-              SliverToBoxAdapter(child: SafeArea(bottom: false,
-                  child: _topBar(lv, pts, p))),
-              SliverToBoxAdapter(child: _mainRingCard(pct)),
-              SliverToBoxAdapter(child: _metricsRow()),
-    
-              SliverToBoxAdapter(child: _milestonesSection()),
-              const SliverToBoxAdapter(child: SizedBox(height: 110)),
-            ],
-          ),
+      body: RefreshIndicator(
+        color: cCyan,
+        backgroundColor: const Color(0xFF111111),
+        strokeWidth: 3,
+        displacement: 40,
+        onRefresh: () async {
+          try {
+            final method = MethodChannel('com.fit24app/steps');
+            final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+            final currentSteps = _hist.isNotEmpty ? (_hist.values.first) : 0; 
+            if (localSteps > currentSteps) {
+              await ref.read(apiServiceProvider).syncSteps(localSteps);
+            }
+          } catch (_) {}
+
+          ref.invalidate(profileDataProvider);
+          ref.invalidate(profileStatsProvider);
+          ref.invalidate(userPointsProvider);
+
+          await _initSteps();
+          await ref.read(userPointsProvider.notifier).refresh();
+          await ref.read(profileStatsProvider.future);
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/home_bg.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned.fill(
+              child: Container(color: Colors.black.withOpacity(0.6)),
+            ),
+            CustomScrollView(
+              controller: _sc,
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverToBoxAdapter(child: SafeArea(bottom: false,
+                    child: _topBar(lv, pts, p))),
+                SliverToBoxAdapter(child: _mainRingCard(pct)),
+                SliverToBoxAdapter(child: _metricsRow()),
+                SliverToBoxAdapter(child: _dailyStepsChart(week)),
+                SliverToBoxAdapter(child: _milestonesSection()),
+                const SliverToBoxAdapter(child: SizedBox(height: 110)),
+              ],
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -637,71 +650,93 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   // ── Week section ──────────────────────────────────────────────────────────
 
-  Widget _weekSection(List<_Day> week, int best) {
+  Widget _dailyStepsChart(List<_Day> week) {
     final max = week.map((d) => d.steps).fold(1, math.max);
-    final fmt = DateFormat('yyyy-MM-dd');
-    final todayKey = fmt.format(DateTime.now());
+    final avg = (week.map((d) => d.steps).reduce((a, b) => a + b) / week.length).round();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(color: Colors.white.withOpacity(0.15)),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Weekly Steps', style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-            Chip24('7 Days', color: cCyan),
-          ]),
-          const SizedBox(height: 20),
-          SizedBox(height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: week.asMap().entries.map((e) {
-                final d = e.value;
-                final isToday = fmt.format(d.date) == todayKey;
-                final isBest = d.steps == best && best > 0;
-                final frac = d.steps / max;
-                final barH = math.max(6.0, 90 * frac);
+        child: Column(
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Text('Steps', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.5), size: 20),
+                ]),
+                Text('Avg. $avg per day', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
+              ]),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
+                child: Row(children: [
+                  Text('History', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 24, height: 24,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: cCyan),
+                    child: const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.black),
+                  ),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 30),
+            SizedBox(height: 160,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: week.map((d) {
+                  final frac = d.steps / max;
+                  final barH = math.max(4.0, 120 * frac);
+                  final label = DateFormat('E').format(d.date).substring(0, 1);
+                  final isZero = d.steps == 0;
 
-                return Expanded(child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Column(mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end, children: [
-                    if (isBest && !isToday)
-                      const Text('Best', style: TextStyle(
-                          fontSize: 8, color: cAmber,
-                          fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 3),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeOutCubic, height: barH,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: isToday ? cCyan : Colors.white.withOpacity(0.15),
-                        boxShadow: isToday ? [
-                          BoxShadow(color: cCyan.withOpacity(0.6), blurRadius: 15)
-                        ] : [],
+                  return Expanded(
+                    child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                      Text(isZero ? '0' : '${d.steps}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isZero ? Colors.white.withOpacity(0.2) : Colors.white)),
+                      const SizedBox(height: 8),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOutBack,
+                        height: isZero ? 4 : barH,
+                        width: 14,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(100),
+                          color: isZero ? Colors.white.withOpacity(0.1) : cCyan,
+                          boxShadow: isZero ? [] : [BoxShadow(color: cCyan.withOpacity(0.3), blurRadius: 10)],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(DateFormat('E').format(d.date).substring(0, 1),
-                      style: TextStyle(fontSize: 11,
-                          fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
-                          color: isToday ? cCyan : Colors.white.withOpacity(0.5))),
-                  ]),
-                ));
-              }).toList(),
+                      const SizedBox(height: 12),
+                      Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w600)),
+                    ]),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-        ]),
+            const SizedBox(height: 24),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _dot(true), _dot(false), _dot(false),
+            ]),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _dot(bool active) => Container(
+    width: active ? 16 : 8, height: 4,
+    margin: const EdgeInsets.symmetric(horizontal: 2),
+    decoration: BoxDecoration(
+      color: active ? Colors.white : Colors.white.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(100),
+    ),
+  );
 
   // ── Points card ───────────────────────────────────────────────────────────
 
@@ -814,26 +849,29 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             children: milestones.map((m) {
               final done = _today >= m.$1;
               final accent = m.$4;
-              return Column(children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 400),
-                  width: 54, height: 54,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: done ? accent.withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: done ? accent : Colors.white.withOpacity(0.1),
-                        width: 2),
-                    boxShadow: done ? [BoxShadow(color: accent.withOpacity(0.5), blurRadius: 16)] : [],
+              return GestureDetector(
+                onTap: () => _showMilestoneInfo(m.$2, m.$1, done),
+                child: Column(children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 400),
+                    width: 54, height: 54,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: done ? accent.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: done ? accent : Colors.white.withOpacity(0.1),
+                          width: 2),
+                      boxShadow: done ? [BoxShadow(color: accent.withOpacity(0.5), blurRadius: 16)] : [],
+                    ),
+                    child: Icon(m.$3, color: done ? accent : Colors.white.withOpacity(0.2), size: 24),
                   ),
-                  child: Icon(m.$3, color: done ? accent : Colors.white.withOpacity(0.2), size: 24),
-                ),
-                const SizedBox(height: 7),
-                Text(m.$2, style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w900,
-                    color: done ? accent : Colors.white.withOpacity(0.3))),
-              ]);
+                  const SizedBox(height: 7),
+                  Text(m.$2, style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w900,
+                      color: done ? accent : Colors.white.withOpacity(0.3))),
+                ]),
+              );
             }).toList()),
         ]),
       ),
@@ -849,6 +887,30 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             _hist[fmt.format(now.subtract(Duration(days: i)))] ?? 0),
       _Day(now, _today),
     ];
+  }
+
+  void _showMilestoneInfo(String label, int steps, bool done) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('$label Milestone', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Requirement: $steps steps in a single day.', style: const TextStyle(color: Colors.white70)),
+            const SizedBox(height: 12),
+            Text(done ? 'Status: COMPLETED ✅' : 'Status: IN PROGRESS ⏳', 
+              style: TextStyle(color: done ? cCyan : Colors.white38, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Great!', style: TextStyle(color: cCyan))),
+        ],
+      ),
+    );
   }
 }
 

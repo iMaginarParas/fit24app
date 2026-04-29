@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'home.dart';
 import 'earn.dart';
 import 'activity.dart';
 import 'profile.dart';
 import 'tracking_page.dart';
+import 'step_provider.dart';
 
 // ── TOKENS ───────────────────────────────────────────────────────────────────
 const kBg      = Color(0xFF0A0D0F);
@@ -30,18 +32,20 @@ const kGreenGrad = LinearGradient(
   begin: Alignment.topLeft, end: Alignment.bottomRight,
 );
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _i = 0;
   static const _pages = [HomePage(), EarnPage(), ActivityPage(), ProfilePage()];
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(stepSyncProvider);
+    
     return Scaffold(
       backgroundColor: kBg,
       extendBody: true,
