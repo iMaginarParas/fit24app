@@ -390,7 +390,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   Widget _dashboard() {
     final pct = (_disp / kGoal).clamp(0.0, 1.0);
     final pts = ref.watch(userPointsProvider);
-    final displayPts = pts + math.max(0, _today - _lastSynced);
+    final displayPts = (pts + math.max(0, _today - _lastSynced)).toInt();
     final lv = levelFor(_today);
     final week = _buildWeek();
     final best = week.map((d) => d.steps).fold(0, math.max);
@@ -424,7 +424,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
           await _initSteps();
           await ref.read(userPointsProvider.notifier).refresh();
-          await ref.read(profileStatsProvider.future);
+          await ref.read(baseProfileStatsProvider.future);
         },
         child: Stack(
           children: [
@@ -442,7 +442,8 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               slivers: [
                 SliverToBoxAdapter(child: SafeArea(bottom: false,
-                    child: _topBar(lv, pts, p))),
+                    child: _topBar(lv, displayPts, p))),
+                SliverToBoxAdapter(child: _pointsCard(displayPts, lv)),
                 SliverToBoxAdapter(child: _mainRingCard(pct)),
                 SliverToBoxAdapter(child: _metricsRow()),
                 SliverToBoxAdapter(child: _dailyStepsChart(week)),
@@ -482,7 +483,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
         ),
         child: Row(children: [
-          Text(NumberFormat.compact().format(displayPts),
+          Text(NumberFormat.compact().format(pts),
               style: const TextStyle(
                   fontSize: 14, color: Colors.white, fontWeight: FontWeight.w900)),
           const SizedBox(width: 5),
@@ -773,7 +774,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Fit Points', style: TextStyle(
                   fontSize: 12, color: Colors.white.withOpacity(0.7))),
-              Text(NumberFormat('#,###').format(displayPts),
+              Text(NumberFormat('#,###').format(pts),
                   style: const TextStyle(
                       fontSize: 28, fontWeight: FontWeight.w900,
                       color: Colors.white, letterSpacing: -1)),

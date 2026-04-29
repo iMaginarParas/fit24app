@@ -74,7 +74,7 @@ class _EP extends ConsumerState<EarnPage> {
     final totalPoints = ref.watch(userPointsProvider);
     final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? _todaySteps;
     // Calculate display points: Total points from backend + unsynced live steps
-    final displayPoints = totalPoints + math.max(0, liveSteps - _todaySteps);
+    final displayPoints = totalPoints + math.max(0, liveSteps - _todaySteps).toInt();
     
     return Scaffold(
       backgroundColor: kBg,

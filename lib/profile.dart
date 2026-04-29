@@ -89,7 +89,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ref.invalidate(profileStatsProvider);
         ref.invalidate(userPointsProvider);
         await ref.read(profileDataProvider.future);
-        await ref.read(profileStatsProvider.future);
+        await ref.read(baseProfileStatsProvider.future);
       },
       child: CustomScrollView(
           controller: _sc,

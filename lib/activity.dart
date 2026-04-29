@@ -116,6 +116,8 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   static const _days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   static const _colors = [kPurple, kBlue, kTeal, kAmber, kCoral, kPurple, kGreen];
 
+  @override
+  Widget build(BuildContext context) {
     final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? 0;
 
     return Scaffold(
@@ -520,7 +522,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                   final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
                   final color = _colors[i % _colors.length];
                   
-                   return Expanded(child: Padding(
+                  return Expanded(child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: GestureDetector(
                       onTap: () => setState(() => _selIdx = (_selIdx == i ? null : i)),
