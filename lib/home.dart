@@ -58,6 +58,8 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   int _lastSynced = 0;
   late ScrollController _sc;
   static const kGoal = 10000;
+  int _chartIdx = 0;
+  final PageController _pc = PageController();
 
   // BOLD THEME COLORS
   static const Color cCyan = Color(0xFF00E5FF);
@@ -74,6 +76,17 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _sc = ScrollController()..addListener(() => setState(() {}));
     _checkPerm();
     Future.microtask(() => ref.read(userPointsProvider.notifier).refresh());
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    _spin.dispose();
+    _sc.dispose();
+    _pc.dispose();
+    _tick?.cancel();
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkPerm() async {
@@ -649,12 +662,58 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     );
 
 
-
-  // ── Week section ──────────────────────────────────────────────────────────
+  // ── Week section (Sliding Metrics) ──────────────────────────────────────────
 
   Widget _dailyStepsChart(List<_Day> week) {
-    final max = week.map((d) => d.steps).fold(1, math.max);
-    final avg = (week.map((d) => d.steps).reduce((a, b) => a + b) / week.length).round();
+    return Column(
+      children: [
+        SizedBox(
+          height: 310,
+          child: PageView(
+            controller: _pc,
+            onPageChanged: (i) => setState(() => _chartIdx = i),
+            children: [
+              _metricSlide(
+                'Steps', 
+                week, 
+                (d) => d.steps, 
+                cCyan, 
+                'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600',
+                'per day'
+              ),
+              _metricSlide(
+                'Calories', 
+                week, 
+                (d) => d.steps ~/ 20, 
+                kCoral, 
+                'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=600',
+                'kcal avg'
+              ),
+              _metricSlide(
+                'Distance', 
+                week, 
+                (d) => (d.steps * 0.75) / 1000.0, 
+                kGreen, 
+                'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=600',
+                'km total',
+                isKm: true
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (i) => _dot(i == _chartIdx)),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricSlide(String title, List<_Day> week, dynamic Function(_Day) valFn, Color color, String img, String sub, {bool isKm = false}) {
+    final data = week.map((d) => valFn(d)).toList();
+    final max = data.map((v) => v.toDouble()).fold(1.0, math.max);
+    final avg = (data.map((v) => v.toDouble()).reduce((a, b) => a + b) / data.length);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -664,17 +723,22 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           color: Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: Colors.white.withOpacity(0.15)),
+          image: DecorationImage(
+            image: NetworkImage(img),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.8), BlendMode.darken),
+          ),
         ),
         child: Column(
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  const Text('Steps', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
                   const SizedBox(width: 4),
                   Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.5), size: 20),
                 ]),
-                Text('Avg. $avg per day', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
+                Text('Avg. ${isKm ? avg.toStringAsFixed(1) : avg.round()} $sub', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
               ]),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
@@ -683,25 +747,28 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
                   const SizedBox(width: 8),
                   Container(
                     width: 24, height: 24,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: cCyan),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
                     child: const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.black),
                   ),
                 ]),
               ),
             ]),
             const SizedBox(height: 30),
-            SizedBox(height: 160,
+            Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: week.map((d) {
-                  final frac = d.steps / max;
+                children: List.generate(week.length, (i) {
+                  final d = week[i];
+                  final val = data[i].toDouble();
+                  final frac = val / max;
                   final barH = math.max(4.0, 120 * frac);
                   final label = DateFormat('E').format(d.date).substring(0, 1);
-                  final isZero = d.steps == 0;
+                  final isZero = val == 0;
 
                   return Expanded(
                     child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                      Text(isZero ? '0' : '${d.steps}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isZero ? Colors.white.withOpacity(0.2) : Colors.white)),
+                      Text(isZero ? '0' : (isKm ? val.toStringAsFixed(1) : val.round().toString()), 
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isZero ? Colors.white.withOpacity(0.2) : Colors.white)),
                       const SizedBox(height: 8),
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 600),
@@ -710,21 +777,17 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
                         width: 14,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(100),
-                          color: isZero ? Colors.white.withOpacity(0.1) : cCyan,
-                          boxShadow: isZero ? [] : [BoxShadow(color: cCyan.withOpacity(0.3), blurRadius: 10)],
+                          color: isZero ? Colors.white.withOpacity(0.1) : color,
+                          boxShadow: isZero ? [] : [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)],
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w600)),
                     ]),
                   );
-                }).toList(),
+                }),
               ),
             ),
-            const SizedBox(height: 24),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _dot(true), _dot(false), _dot(false),
-            ]),
           ],
         ),
       ),

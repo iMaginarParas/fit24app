@@ -42,16 +42,37 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late ScrollController _sc;
+  int _chartIdx = 0;
+  final PageController _pc = PageController();
+  List<dynamic> _history = [];
+  bool _loadingHist = true;
 
   @override
   void initState() {
     super.initState();
     _sc = ScrollController()..addListener(() => setState(() {}));
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final history = await api.getStepHistory(days: 7);
+      if (mounted) {
+        setState(() {
+          _history = history['daily_logs'] as List? ?? [];
+          _loadingHist = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingHist = false);
+    }
   }
 
   @override
   void dispose() {
     _sc.dispose();
+    _pc.dispose();
     super.dispose();
   }
 
@@ -88,8 +109,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ref.invalidate(profileDataProvider);
         ref.invalidate(profileStatsProvider);
         ref.invalidate(userPointsProvider);
-        await ref.read(profileDataProvider.future);
-        await ref.read(baseProfileStatsProvider.future);
+        _loadHistory();
       },
       child: CustomScrollView(
           controller: _sc,
@@ -107,6 +127,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             SliverToBoxAdapter(child: _heroProfile(ctx, phone, p)),
             SliverToBoxAdapter(child: _achievementsSection()),
+            SliverToBoxAdapter(child: _historyChart()),
             SliverToBoxAdapter(child: _statsGrid()),
             SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
               _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
@@ -268,6 +289,125 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           color: earned ? Colors.white : Colors.white.withOpacity(0.2))),
     ]),
   );
+
+  Widget _historyChart() {
+    if (_loadingHist) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 1)));
+    if (_history.isEmpty) return const SizedBox();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 310,
+          child: PageView(
+            controller: _pc,
+            onPageChanged: (i) => setState(() => _chartIdx = i),
+            children: [
+              _metricProfileSlide(
+                'Steps', 
+                kTeal, 
+                'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=600',
+                'steps',
+                (d) => (d['steps'] as num?)?.toInt() ?? 0
+              ),
+              _metricProfileSlide(
+                'Calories', 
+                kPink, 
+                'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=600',
+                'kcal',
+                (d) => ((d['steps'] as num?)?.toInt() ?? 0) ~/ 20
+              ),
+              _metricProfileSlide(
+                'Distance', 
+                kBlue, 
+                'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=600',
+                'km',
+                (d) => (((d['steps'] as num?)?.toInt() ?? 0) * 0.75) / 1000.0,
+                isKm: true
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (i) => _dotChart(i == _chartIdx)),
+        ),
+      ],
+    );
+  }
+
+  Widget _dotChart(bool active) => AnimatedContainer(
+    duration: const Duration(milliseconds: 300),
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    width: active ? 18 : 6, height: 6,
+    decoration: BoxDecoration(
+      color: active ? kTeal : Colors.white24,
+      borderRadius: BorderRadius.circular(10),
+    ),
+  );
+
+  Widget _metricProfileSlide(String title, Color color, String img, String unit, dynamic Function(dynamic) valFn, {bool isKm = false}) {
+    final sorted = _history.reversed.toList();
+    final data = sorted.map((d) => valFn(d).toDouble()).toList();
+    final max = data.fold(1.0, math.max);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: kCard,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          image: DecorationImage(
+            image: NetworkImage(img),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.85), BlendMode.darken),
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('7-Day $title', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.4), letterSpacing: 1)),
+              Icon(Icons.insights_rounded, color: color, size: 18),
+            ]),
+            const SizedBox(height: 30),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(sorted.length, (i) {
+                  final v = data[i];
+                  final frac = v / max;
+                  final h = math.max(6.0, 100 * frac);
+                  final date = DateTime.parse(sorted[i]['log_date']);
+                  final label = DateFormat('E').format(date).substring(0, 1);
+
+                  return Expanded(
+                    child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                      Text(isKm ? v.toStringAsFixed(1) : v.round().toString(), 
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.8))),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: h,
+                        width: 12,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(100),
+                          color: color,
+                          boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8)],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(label, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w600)),
+                    ]),
+                  );
+                }),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _statsGrid() {
     final stats = ref.watch(profileStatsProvider);
