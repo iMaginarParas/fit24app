@@ -60,6 +60,10 @@ class ProfilePage extends ConsumerWidget {
       try {
         final method = MethodChannel('com.fit24app/steps');
         final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+        final stats = ref.read(profileStatsProvider).valueOrNull;
+        final currentSteps = stats?.totalSteps ?? 0; // Note: totalSteps is 30-day sum, but for today check we just want to avoid syncing if local is 0 or suspiciously low.
+        // Actually, since profile uses totalSteps (30 days), comparing localSteps (today) to it is not perfect.
+        // But the main goal is to avoid syncing 0 or lower values for today.
         if (localSteps > 0) {
           await ref.read(apiServiceProvider).syncSteps(localSteps);
         }

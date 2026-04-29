@@ -12,8 +12,8 @@ class UserPointsNotifier extends StateNotifier<int> {
   Future<void> refresh() async {
     try {
       final api = ref.read(apiServiceProvider);
-      final history = await api.getStepHistory(days: 1);
-      state = history['total_fit_points'] ?? 0;
+      final stats = await api.getStats();
+      state = stats['total_fit_points'] ?? 0;
     } catch (_) {}
   }
 

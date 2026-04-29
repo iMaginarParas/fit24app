@@ -109,6 +109,22 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     
     // Initial health sync
     HealthService.syncCurrentSteps();
+    _checkDailyPointSync();
+  }
+
+  Future<void> _checkDailyPointSync() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final lastSync = prefs.getString('last_daily_point_sync');
+      
+      if (lastSync != today) {
+        // This is the first launch of the day, or 24h have passed.
+        // Refresh the global point balance to ensure everything is synced.
+        await ref.read(userPointsProvider.notifier).refresh();
+        await prefs.setString('last_daily_point_sync', today);
+      }
+    } catch (_) {}
   }
 
   Future<void> _initSteps() async {
@@ -130,7 +146,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _syncToBackend() async {
-    if (_today == _lastSynced || _today == 0) return;
+    if (_today <= _lastSynced || _today == 0) return;
     try {
       final api = ref.read(apiServiceProvider);
       await api.syncSteps(_today);
@@ -366,6 +382,8 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
 
+  bool _refreshing = false;
+
   Widget _dashboard() {
     final pct = (_disp / kGoal).clamp(0.0, 1.0);
     final pts = ref.watch(userPointsProvider);
@@ -379,42 +397,46 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        color: cCyan,
-        backgroundColor: const Color(0xFF1A1A1A),
-        strokeWidth: 3,
-        onRefresh: () async {
-          // 1. Force sync local steps to backend first
-          try {
-            final localSteps = await _method.invokeMethod<int>('getTodaySteps') ?? 0;
-            if (localSteps > 0) {
-              final api = ref.read(apiServiceProvider);
-              await api.syncSteps(localSteps);
-              _lastSynced = localSteps;
-            }
-          } catch (_) {}
-
-          // 2. Invalidate global providers so they fetch fresh data
-          ref.invalidate(profileDataProvider);
-          ref.invalidate(profileStatsProvider);
-          ref.invalidate(userPointsProvider);
-
-          // 3. Reload local state
-          await _initSteps();
-          await ref.read(userPointsProvider.notifier).refresh();
-          await ref.read(profileStatsProvider.future);
-        },
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: [
-            SliverToBoxAdapter(child: SafeArea(bottom: false,
-                child: _topBar(lv, pts, p))),
-            SliverToBoxAdapter(child: _mainRingCard(pct)),
-            SliverToBoxAdapter(child: _metricsRow()),
+      body: AbsorbPointer(
+        absorbing: _refreshing,
+        child: RefreshIndicator(
+          color: cCyan,
+          backgroundColor: const Color(0xFF1A1A1A),
+          strokeWidth: 3,
+          onRefresh: () async {
+            if (mounted) setState(() => _refreshing = true);
+            try {
+              final method = MethodChannel('com.fit24app/steps');
+              final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
+              final currentSteps = _hist.isNotEmpty ? (_hist.values.first) : 0; 
+              if (localSteps > currentSteps) {
+                await ref.read(apiServiceProvider).syncSteps(localSteps);
+              }
+            } catch (_) {}
   
-            SliverToBoxAdapter(child: _milestonesSection()),
-            const SliverToBoxAdapter(child: SizedBox(height: 110)),
-          ],
+            // 2. Invalidate global providers
+            ref.invalidate(profileDataProvider);
+            ref.invalidate(profileStatsProvider);
+            ref.invalidate(userPointsProvider);
+  
+            // 3. Reload local state
+            await _initSteps();
+            await ref.read(userPointsProvider.notifier).refresh();
+            await ref.read(profileStatsProvider.future);
+            if (mounted) setState(() => _refreshing = false);
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            slivers: [
+              SliverToBoxAdapter(child: SafeArea(bottom: false,
+                  child: _topBar(lv, pts, p))),
+              SliverToBoxAdapter(child: _mainRingCard(pct)),
+              SliverToBoxAdapter(child: _metricsRow()),
+    
+              SliverToBoxAdapter(child: _milestonesSection()),
+              const SliverToBoxAdapter(child: SizedBox(height: 110)),
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

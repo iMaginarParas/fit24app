@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'api_service.dart';
 import 'leaderboard.dart';
 import 'session_detail_page.dart';
@@ -18,23 +19,34 @@ class ActivityPage extends ConsumerStatefulWidget {
 }
 
 class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixin {
+  late String _currentTime;
+  Timer? _clockTimer;
   late TabController _tab;
-  int _period = 0; // 0=Today 1=Week 2=Month
-  bool _loading = true;
+  int _period = 0;
   List<dynamic> _history = [];
-  List<Map<String, dynamic>> _sessions = [];
-  int? _selIdx;
+  List<dynamic> _sessions = [];
+  bool _loading = true;
   int _totalSteps = 0;
-  ActivityType _selectedType = ActivityType.walking;
+  ActivityType? _selectedType;
+  int? _selIdx;
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() { if (mounted) setState(() => _period = _tab.index); });
+    _currentTime = _formatTime(DateTime.now());
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (mounted) {
+        final now = _formatTime(DateTime.now());
+        if (now != _currentTime) setState(() => _currentTime = now);
+      }
+    });
     _loadData();
     _loadSessions();
   }
+
+  String _formatTime(DateTime dt) => DateFormat('HH:mm').format(dt);
 
   Future<void> _loadSessions() async {
     try {
@@ -89,7 +101,11 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   }
 
   @override
-  void dispose() { _tab.dispose(); super.dispose(); }
+  void dispose() { 
+    _tab.dispose(); 
+    _clockTimer?.cancel();
+    super.dispose(); 
+  }
 
   static const _days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   static const _colors = [kPurple, kBlue, kTeal, kAmber, kCoral, kPurple, kGreen];
@@ -109,10 +125,9 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           Positioned.fill(
             child: Container(color: Colors.black.withOpacity(0.5)),
           ),
-          if (_loading)
-            const Center(child: CircularProgressIndicator(color: kGreen))
-          else
-            RefreshIndicator(
+          AbsorbPointer(
+            absorbing: _loading,
+            child: RefreshIndicator(
               color: kGreen,
               backgroundColor: kCard,
             onRefresh: () async {
@@ -120,7 +135,8 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                 try {
                   final method = MethodChannel('com.fit24app/steps');
                   final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
-                  if (localSteps > 0) {
+                  final currentSteps = _history.isNotEmpty ? (_history.first['steps'] as int? ?? 0) : 0;
+                  if (localSteps > currentSteps) {
                     await ref.read(apiServiceProvider).syncSteps(localSteps);
                   }
                 } catch (_) {}
@@ -146,6 +162,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                 ],
               ),
             ),
+          ),
         ],
       ),
     );
@@ -162,13 +179,14 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           offset: const Offset(0, 40),
           color: kCard,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          itemBuilder: (ctx) => [
-            _menuItem(ActivityType.walking, 'Walking Activity'),
-            _menuItem(ActivityType.running, 'Running Activity'),
-            _menuItem(ActivityType.cycling, 'Cycling Activity'),
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: null, child: Text('All Activities')),
+            const PopupMenuItem(value: ActivityType.walking, child: Text('Walking')),
+            const PopupMenuItem(value: ActivityType.running, child: Text('Running')),
+            const PopupMenuItem(value: ActivityType.cycling, child: Text('Cycling')),
           ],
-          child: Row(children: [
-            Text(_titleOf(_selectedType), style: const TextStyle(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(_selectedType == null ? 'All Activities' : _titleOf(_selectedType!), style: const TextStyle(
                 fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
             const SizedBox(width: 6),
             Icon(Icons.keyboard_arrow_down_rounded,
@@ -251,7 +269,9 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   );
 
   Widget _sessionsList() {
-    final filtered = _sessions.where((s) => ActivityType.values[s['type'] as int] == _selectedType).toList();
+    final filtered = _selectedType == null 
+        ? _sessions 
+        : _sessions.where((s) => ActivityType.values[s['type'] as int] == _selectedType).toList();
     if (filtered.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -333,23 +353,43 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   );
 
   Widget _mainStepCard() {
-    final today = _history.isNotEmpty ? _history.first : null;
-    final steps = today != null ? today['steps'] as int : 0;
-    final cal = today != null ? today['calories'] as int : 0;
-
-    double todayDist = 0;
+    final todayLog = _history.isNotEmpty ? _history.first : null;
+    final dailySteps = todayLog != null ? todayLog['steps'] as int : 0;
+    
+    int filteredSteps = 0;
+    double filteredDist = 0;
+    int filteredCal = 0;
+    
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    
+    // 1. Accumulate data from matching sessions
     for (var s in _sessions) {
-      if (s['date'].startsWith(todayStr) && ActivityType.values[s['type'] as int] == _selectedType) {
-        todayDist += s['distance'] as double;
+      if (s['date'].startsWith(todayStr)) {
+        final type = ActivityType.values[s['type'] as int];
+        if (_selectedType == null || _selectedType == type) {
+          filteredSteps += (s['steps'] as int? ?? 0);
+          filteredDist += (s['distance'] as double? ?? 0);
+          filteredCal += (s['calories'] as int? ?? 0);
+        }
       }
     }
+
+    // 2. Add background daily steps only for All or Walking
+    if (_selectedType == null || _selectedType == ActivityType.walking) {
+      filteredSteps += dailySteps;
+      filteredDist += (dailySteps * 0.75); // meters
+      filteredCal += (dailySteps ~/ 20);
+    }
+
+    final totalTodaySteps = filteredSteps;
+    double totalDistKm = filteredDist / 1000.0;
+    int totalCal = filteredCal;
     
-    final isStepBased = _selectedType == ActivityType.walking;
+    final isStepBased = _selectedType == null || _selectedType == ActivityType.walking;
     final displayVal = isStepBased 
-        ? NumberFormat('#,###').format(steps)
-        : (todayDist < 1000 ? '${todayDist.toStringAsFixed(0)}' : '${(todayDist/1000).toStringAsFixed(2)}');
-    final displayUnit = isStepBased ? 'Steps' : (todayDist < 1000 ? 'Meters' : 'Kilometers');
+        ? NumberFormat('#,###').format(totalTodaySteps)
+        : (totalDistKm < 1 ? '${(totalDistKm * 1000).toStringAsFixed(0)}' : '${totalDistKm.toStringAsFixed(2)}');
+    final displayUnit = isStepBased ? 'Steps' : (totalDistKm < 1 ? 'Meters' : 'Kilometers');
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -365,7 +405,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             width: 130, height: 130,
             child: Stack(alignment: Alignment.center, children: [
               CustomPaint(size: const Size(130, 130),
-                  painter: _MiniRing(isStepBased ? steps : (todayDist).toInt(), isStepBased ? 10000 : 5000, kGreen)),
+                  painter: _MiniRing(isStepBased ? totalTodaySteps : (totalDistKm * 1000).toInt(), isStepBased ? 10000 : 5000, kGreen)),
               Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(displayVal, style: const TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
@@ -378,11 +418,11 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           // Right: metrics
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _sideMetric('Sleep', '08:30', 'Hours', Icons.nightlight_round, kBlue),
+            _sideMetric('Real Time', _currentTime, 'Clock', Icons.access_time_rounded, kBlue),
             const SizedBox(height: 14),
-            _sideMetric('Calories', '$cal', 'Kcal', Icons.local_fire_department_rounded, kCoral),
+            _sideMetric('Calories', '$totalCal', 'Kcal', Icons.local_fire_department_rounded, kCoral),
             const SizedBox(height: 14),
-            _sideMetric('Training', '${steps ~/ 100}', 'Minutes', Icons.fitness_center_rounded, kGreen),
+            _sideMetric('Distance', totalDistKm.toStringAsFixed(2), 'Km', Icons.straighten_rounded, kGreen),
           ])),
         ]),
       ),
@@ -458,64 +498,107 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   ));
 
    Widget _barChart() {
-    final week = _history.take(7).toList().reversed.toList();
+    final week = _history.take(7).toList();
     if (week.isEmpty) return const SizedBox();
     
-    final maxSteps = week.map((d) => d['steps'] as int).fold(1, math.max);
+    // Reverse to show Mon -> Sun or chronological
+    final sortedWeek = week.reversed.toList();
+    
+    // Calculate total steps (daily + activity) for each day in the chart
+    final List<Map<String, dynamic>> chartData = [];
+    for (var d in sortedWeek) {
+      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(d['log_date']));
+      int totalSteps = 0;
+      
+      // Include background steps only for All or Walking
+      if (_selectedType == null || _selectedType == ActivityType.walking) {
+        totalSteps += (d['steps'] as int? ?? 0);
+      }
+      
+      // Add sessions for this day and type
+      for (var s in _sessions) {
+        if (s['date'].startsWith(dateStr)) {
+          final type = ActivityType.values[s['type'] as int];
+          if (_selectedType == null || _selectedType == type) {
+            totalSteps += (s['steps'] as int? ?? 0);
+          }
+        }
+      }
+      
+      chartData.add({
+        'date': d['log_date'],
+        'steps': totalSteps,
+      });
+    }
+
+    final maxSteps = chartData.map((d) => d['steps'] as int).fold(1, math.max);
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: kCard, borderRadius: BorderRadius.circular(24),
           border: Border.all(color: kBorder),
         ),
-        child: SizedBox(height: 120,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(week.length, (i) {
-              final d = week[i];
-              final s = d['steps'] as int;
-              final frac = s / maxSteps;
-              final h = math.max(8.0, 94 * frac);
-              final date = DateTime.parse(d['log_date']);
-              final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
-              final color = _colors[i % _colors.length];
-              
-               return Expanded(child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: () => setState(() => _selIdx = (_selIdx == i ? null : i)),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end, children: [
-                    if (_selIdx == i)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(NumberFormat.compact().format(s), 
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color)),
-                      ),
-                    AnimatedContainer(
-                      duration: Duration(milliseconds: 400 + i * 50),
-                      height: h,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: isToday ? null : color.withOpacity(_selIdx == i ? 1.0 : 0.5),
-                        gradient: isToday ? kGreenGrad : null,
-                        boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8)],
-                        border: _selIdx == i ? Border.all(color: Colors.white.withOpacity(0.5), width: 1.5) : null,
-                      ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('7-Day Step Count', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.w600)),
+                const Icon(Icons.bar_chart_rounded, color: kGreen, size: 16),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(height: 100,
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(chartData.length, (i) {
+                  final d = chartData[i];
+                  final s = d['steps'] as int;
+                  final frac = s / maxSteps;
+                  final h = math.max(8.0, 80 * frac);
+                  final date = DateTime.parse(d['date']);
+                  final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+                  final color = _colors[i % _colors.length];
+                  
+                   return Expanded(child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selIdx = (_selIdx == i ? null : i)),
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end, children: [
+                        if (_selIdx == i)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(NumberFormat.compact().format(s), 
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color)),
+                          ),
+                        AnimatedContainer(
+                          duration: Duration(milliseconds: 400 + i * 50),
+                          height: h,
+                          width: 14,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            color: isToday ? null : color.withOpacity(_selIdx == i ? 1.0 : 0.6),
+                            gradient: isToday ? kGreenGrad : null,
+                            boxShadow: isToday ? [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 8)] : null,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(DateFormat('E').format(date).substring(0, 1), style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isToday ? FontWeight.w900 : FontWeight.w500,
+                            color: isToday ? kGreen : Colors.white.withOpacity(0.3))),
+                      ]),
                     ),
-                    const SizedBox(height: 7),
-                    Text(DateFormat('E').format(date).substring(0, 1), style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                        color: isToday ? kGreen : Colors.white.withOpacity(0.35))),
-                  ]),
-                ),
-              ));
-            }),
-          ),
+                  ));
+                }),
+              ),
+            ),
+          ],
         ),
       ),
     );

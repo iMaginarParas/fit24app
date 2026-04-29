@@ -13,8 +13,9 @@ final profileStatsProvider = FutureProvider.autoDispose<ProfileStats>((ref) asyn
   try {
     final history = await api.getStepHistory(days: 30);
     final sessions = await api.getSessions();
+    int sessionSteps = sessions.fold(0, (sum, s) => sum + (s['steps'] as int? ?? 0));
     return ProfileStats(
-      totalSteps: history['total_steps'] ?? 0,
+      totalSteps: (history['total_steps'] ?? 0) + sessionSteps,
       totalPoints: history['total_fit_points'] ?? 0,
       totalSessions: sessions.length,
     );

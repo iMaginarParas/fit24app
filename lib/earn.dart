@@ -65,30 +65,30 @@ class _EP extends ConsumerState<EarnPage> {
         Positioned.fill(
           child: Container(color: Colors.black.withOpacity(0.55)), // Darken for readability
         ),
-         if (_loading)
-          const Center(child: CircularProgressIndicator(color: kGreen))
-        else
-          RefreshIndicator(
-            color: kGreen,
-            backgroundColor: const Color(0xFF1A1A1A),
-            strokeWidth: 3,
-            onRefresh: _loadData,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                SliverToBoxAdapter(child: _balanceCard(totalPoints, liveSteps)),
-                SliverToBoxAdapter(child: _rateCards()),
-                SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
-                })),
-                SliverToBoxAdapter(child: _challengesList(liveSteps)),
-                SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
-                })),
-                SliverToBoxAdapter(child: _redeemRow()),
-                const SliverToBoxAdapter(child: SizedBox(height: 110)),
-              ],
+          AbsorbPointer(
+            absorbing: _loading,
+            child: RefreshIndicator(
+              color: kGreen,
+              backgroundColor: const Color(0xFF1A1A1A),
+              strokeWidth: 3,
+              onRefresh: _loadData,
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                  SliverToBoxAdapter(child: _balanceCard(totalPoints, liveSteps)),
+                  SliverToBoxAdapter(child: _rateCards()),
+                  SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
+                  })),
+                  SliverToBoxAdapter(child: _challengesList(liveSteps)),
+                  SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+                  })),
+                  SliverToBoxAdapter(child: _redeemRow()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                ],
+              ),
             ),
           ),
       ],
@@ -198,9 +198,9 @@ class _EP extends ConsumerState<EarnPage> {
           ),
           const SizedBox(height: 18),
           Row(children: [
-            Expanded(child: _actionBtn('Withdraw', Icons.arrow_upward_rounded, kGreen)),
-            const SizedBox(width: 10),
-            Expanded(child: _actionBtn('Share', Icons.share_rounded, kBlue)),
+            Expanded(child: _actionBtn('Withdraw', Icons.arrow_upward_rounded, kGreen, onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+            })),
           ]),
         ]),
       ]),
@@ -214,17 +214,20 @@ class _EP extends ConsumerState<EarnPage> {
     Text(label, style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.35))),
   ]);
 
-  Widget _actionBtn(String l, IconData icon, Color c) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    decoration: BoxDecoration(
-      color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: c.withOpacity(0.3)),
+  Widget _actionBtn(String l, IconData icon, Color c, {VoidCallback? onTap}) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.withOpacity(0.3)),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, size: 16, color: c),
+        const SizedBox(width: 7),
+        Text(l, style: TextStyle(fontSize: 14, color: c, fontWeight: FontWeight.w700)),
+      ]),
     ),
-    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icon, size: 16, color: c),
-      const SizedBox(width: 7),
-      Text(l, style: TextStyle(fontSize: 14, color: c, fontWeight: FontWeight.w700)),
-    ]),
   );
 
   Widget _rateCards() => Padding(

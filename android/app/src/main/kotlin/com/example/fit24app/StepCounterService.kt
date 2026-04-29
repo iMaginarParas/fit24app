@@ -100,42 +100,57 @@ class StepCounterService : Service(), SensorEventListener {
                 prefs.edit()
                     .putInt(KEY_HISTORY + lastSavedDate, todaySteps)
                     .putString("last_date", today)
-                    .putInt("baseline_steps", totalSteps) // New baseline for new day
+                    .putInt("baseline_steps", totalSteps)
                     .putInt("external_steps", 0)
+                    .putInt(KEY_TODAY, 0)
                     .apply()
             } else {
-                prefs.edit().putString("last_date", today).apply()
+                prefs.edit()
+                    .putString("last_date", today)
+                    .putInt("baseline_steps", totalSteps)
+                    .apply()
             }
             baselineSteps = totalSteps
             todaySteps = 0
             externalSteps = 0
             lastSavedDate = today
+            return // Skip further logic for the first event of a new day
         }
 
         if (baselineSteps < 0) {
-            // If we have todaySteps from before restart, calculate what baseline should be
+            // Initial setup or first run after clear
+            baselineSteps = totalSteps - (todaySteps - externalSteps)
+            prefs.edit().putInt("baseline_steps", baselineSteps).apply()
+        } else if (totalSteps < baselineSteps) {
+            // SENSOR RESET (Phone Reboot)
+            // We adjust baseline so that todaySteps remains the same
             baselineSteps = totalSteps - (todaySteps - externalSteps)
             prefs.edit().putInt("baseline_steps", baselineSteps).apply()
         }
         
         val localSteps = (totalSteps - baselineSteps).coerceAtLeast(0)
-        todaySteps = if (externalSteps > localSteps) externalSteps else localSteps
+        val calculatedSteps = if (externalSteps > localSteps) externalSteps else localSteps
 
-        // Persist
-        prefs.edit().putInt(KEY_TODAY, todaySteps).apply()
+        // Only update if steps increased (prevents jitter or weird resets)
+        if (calculatedSteps > todaySteps || (calculatedSteps == 0 && todaySteps == 0)) {
+            todaySteps = calculatedSteps
+            
+            // Persist
+            prefs.edit().putInt(KEY_TODAY, todaySteps).apply()
 
-        // Push to Flutter EventChannel
-        eventSinkRef?.success(todaySteps)
+            // Push to Flutter EventChannel
+            eventSinkRef?.success(todaySteps)
 
-        // Broadcast for MainActivity BroadcastReceiver - explicit intent for reliability
-        val intent = Intent("com.fit24app.STEPS")
-        intent.putExtra("steps", todaySteps)
-        intent.setPackage(packageName)
-        sendBroadcast(intent)
+            // Broadcast for MainActivity
+            val intent = Intent("com.fit24app.STEPS")
+            intent.putExtra("steps", todaySteps)
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
 
-        // Update notification text
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .notify(NOTIFICATION_ID, buildNotification(todaySteps))
+            // Update notification text
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(NOTIFICATION_ID, buildNotification(todaySteps))
+        }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

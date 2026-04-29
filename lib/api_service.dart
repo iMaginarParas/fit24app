@@ -82,6 +82,15 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  Future<Map<String, dynamic>> getStats() async {
+    final res = await http.get(
+      Uri.parse('$kBaseUrl/steps/stats'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) throw Exception('Failed to fetch stats');
+    return jsonDecode(res.body);
+  }
+
   Future<Map<String, dynamic>> getLeaderboard() async {
     final res = await http.get(
       Uri.parse('$kBaseUrl/steps/leaderboard'),
