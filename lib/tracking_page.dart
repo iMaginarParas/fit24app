@@ -8,6 +8,7 @@ import 'active_session_page.dart';
 import 'tracking_service.dart';
 import 'activity_settings_page.dart';
 import 'activity.dart';
+import 'history_page.dart';
 import 'profile.dart';
 import 'shell.dart';
 
@@ -295,7 +296,7 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
     children: [
       GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage())),
         child: _subIcon(Icons.calendar_today_outlined, 'History'),
       ),
       GestureDetector(

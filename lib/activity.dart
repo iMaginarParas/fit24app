@@ -195,9 +195,6 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Text(_selectedType == null ? 'All Activities' : _titleOf(_selectedType!), style: const TextStyle(
                 fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(width: 6),
-            Icon(Icons.keyboard_arrow_down_rounded,
-                color: Colors.white.withOpacity(0.5), size: 22),
           ]),
         ),
       ]),
@@ -517,23 +514,31 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   );
 
   Widget _metricChartSlide(String title, int liveSteps, dynamic Function(dynamic) valFn, Color color, String img, String unit, {bool isKm = false}) {
-    final week = _history.take(7).toList();
-    if (week.isEmpty) return const SizedBox();
-    
-    final sortedWeek = week.reversed.toList();
+    // Generate a stable 7-day window
+    final now = DateTime.now();
     final List<Map<String, dynamic>> chartData = [];
+    double totalAll = 0;
     
-    for (var d in sortedWeek) {
-      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.parse(d['log_date']));
-      double totalVal = 0;
+    for (int i = 6; i >= 0; i--) {
+      final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       
+      final histEntry = _history.firstWhere(
+        (h) => h['log_date'] == dateStr, 
+        orElse: () => {'log_date': dateStr, 'steps': 0}
+      );
+      
+      double totalVal = 0;
       if (_selectedType == null || _selectedType == ActivityType.walking) {
-        double s = valFn(d).toDouble();
-        if (dateStr == DateFormat('yyyy-MM-dd').format(DateTime.now())) {
-          // Recalculate live val for today if steps based
-          if (title == 'Steps') s = math.max(s, liveSteps.toDouble());
-          else if (title == 'Calories') s = math.max(s, (liveSteps ~/ 20).toDouble());
-          else if (title == 'Distance') s = math.max(s, (liveSteps * 0.75) / 1000.0);
+        double s = valFn(histEntry).toDouble();
+        if (i == 0) {
+          if (title == 'Steps') {
+            s = math.max(s, liveSteps.toDouble());
+          } else if (title == 'Calories') {
+            s = math.max(s, (liveSteps ~/ 20).toDouble());
+          } else if (title == 'Distance') {
+            s = math.max(s, (liveSteps * 0.75) / 1000.0);
+          }
         }
         totalVal += s;
       }
@@ -542,29 +547,29 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         if (s['date'].startsWith(dateStr)) {
           final type = ActivityType.values[s['type'] as int];
           if (_selectedType == null || _selectedType == type) {
-            // Need to apply the same valFn or similar logic to session steps
             final sessSteps = (s['steps'] as num?)?.toInt() ?? 0;
+            final sessDist = (s['distance'] as num?)?.toDouble() ?? 0.0;
             if (title == 'Steps') totalVal += sessSteps;
-            else if (title == 'Calories') totalVal += sessSteps ~/ 20;
-            else if (title == 'Distance') totalVal += (sessSteps * 0.75) / 1000.0;
+            else if (title == 'Calories') totalVal += (s['calories'] as num?)?.toInt() ?? 0;
+            else if (title == 'Distance') totalVal += sessDist / 1000.0;
           }
         }
       }
       
-      chartData.add({
-        'date': d['log_date'],
-        'val': totalVal,
-      });
+      totalAll += totalVal;
+      chartData.add({'date': dateStr, 'val': totalVal});
     }
 
-    final maxVal = chartData.map((d) => d['val'] as double).fold(0.1, (m, v) => math.max(m, v));
+    final avg = totalAll / chartData.length;
+    final maxVal = chartData.map((d) => d['val'] as double).fold(0.0, (m, v) => math.max(m, v));
+    final chartMax = math.max(isKm ? 5.0 : 5000.0, maxVal * 1.2);
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: kCard, borderRadius: BorderRadius.circular(24),
+          color: kCard, borderRadius: BorderRadius.circular(28),
           border: Border.all(color: kBorder),
           image: DecorationImage(
             image: NetworkImage(img),
@@ -578,49 +583,74 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('7-Day $title', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.w600)),
-                Icon(Icons.bar_chart_rounded, color: color, size: 16),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                      child: Text(isKm ? '${totalAll.toStringAsFixed(1)} km' : '${totalAll.round()} total',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Avg: ${isKm ? avg.toStringAsFixed(1) : avg.round()} ${isKm ? "km" : "steps"}/day',
+                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5))),
+                  ]),
+                ]),
+                Icon(Icons.insights_rounded, color: color, size: 22),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
             Expanded(
               child: Row(crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(chartData.length, (i) {
                   final d = chartData[i];
                   final v = d['val'] as double;
-                  final frac = v / maxVal;
-                  final h = math.max(8.0, 80 * frac);
+                  final frac = v / chartMax;
+                  final h = math.max(6.0, 130 * frac);
                   final date = DateTime.parse(d['date']);
-                  final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+                  final isToday = i == chartData.length - 1;
                   
                   return Expanded(child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: GestureDetector(
                       onTap: () => setState(() => _selIdx = (_selIdx == i ? null : i)),
                       behavior: HitTestBehavior.opaque,
-                      child: Column(mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.end, children: [
-                        if (_selIdx == i)
+                      child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                        if (_selIdx == i || (v > 0 && isToday))
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(isKm ? v.toStringAsFixed(1) : NumberFormat.compact().format(v), 
-                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color)),
-                          ),
-                        AnimatedContainer(
-                          duration: Duration(milliseconds: 400 + i * 50),
-                          height: h.toDouble(),
-                          width: 14,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            color: isToday ? null : color.withOpacity(_selIdx == i ? 1.0 : 0.6),
-                            gradient: isToday ? LinearGradient(colors: [color.withOpacity(0.7), color], begin: Alignment.bottomCenter, end: Alignment.topCenter) : null,
-                            boxShadow: isToday ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8)] : null,
-                          ),
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), borderRadius: BorderRadius.circular(4)),
+                              child: Text(isKm ? v.toStringAsFixed(1) : (v > 1000 ? '${(v/1000).toStringAsFixed(1)}k' : v.round().toString()), 
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isToday ? color : Colors.white)),
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 17),
+                        Stack(
+                          alignment: Alignment.bottomCenter,
+                          children: [
+                            Container(height: 130, width: 12, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(100))),
+                            AnimatedContainer(
+                              duration: Duration(milliseconds: 600 + i * 50),
+                              curve: Curves.easeOutQuart,
+                              height: h.toDouble(),
+                              width: 12,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(100),
+                                gradient: LinearGradient(colors: [color.withOpacity(0.8), color], begin: Alignment.bottomCenter, end: Alignment.topCenter),
+                                boxShadow: v > 0 ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8)] : [],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text(DateFormat('E').format(date).substring(0, 1), style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isToday ? FontWeight.w900 : FontWeight.w500,
+                            fontSize: 12,
+                            fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
                             color: isToday ? color : Colors.white.withOpacity(0.3))),
                       ]),
                     ),
@@ -635,7 +665,21 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   }
 
   Widget _logList(int liveSteps) {
-    if (_history.isEmpty) return const SizedBox();
+    if (_history.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.history_rounded, color: Colors.white.withOpacity(0.05), size: 40),
+              const SizedBox(height: 12),
+              Text('No activities recorded yet', 
+                style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(

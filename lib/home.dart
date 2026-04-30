@@ -704,9 +704,14 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _metricSlide(String title, List<_Day> week, dynamic Function(_Day) valFn, Color color, String img, String sub, {bool isKm = false}) {
-    final data = week.map((d) => valFn(d)).toList();
-    final max = data.fold(1.0, (m, v) => math.max(m.toDouble(), v.toDouble()));
-    final avg = (data.map((v) => v.toDouble()).reduce((a, b) => a + b) / data.length);
+    final data = week.map((d) => valFn(d).toDouble()).toList();
+    final total = data.reduce((a, b) => a + b);
+    final avg = total / data.length;
+    
+    // Improved scaling: ensure a minimum scale to avoid giant bars for tiny values, 
+    // but also ensure the highest value is visible.
+    final maxVal = data.fold(0.0, (m, v) => math.max(m, v));
+    final chartMax = math.max(isKm ? 5.0 : 5000.0, maxVal * 1.2);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -719,32 +724,36 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           image: DecorationImage(
             image: NetworkImage(img),
             fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.8), BlendMode.darken),
+            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.85), BlendMode.darken),
           ),
         ),
         child: Column(
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-                  const SizedBox(width: 4),
-                  Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withOpacity(0.5), size: 20),
-                ]),
-                Text('Avg. ${isKm ? avg.toStringAsFixed(1) : avg.round()} $sub', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
+                Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isKm ? '${total.toStringAsFixed(2)} km' : '${total.round()} total',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Avg: ${isKm ? avg.toStringAsFixed(2) : avg.round()} ${isKm ? "km" : "steps"}/day',
+                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+                    ),
+                  ],
+                ),
               ]),
-              GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
-                child: Row(children: [
-                  Text('History', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 24, height: 24,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-                    child: const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.black),
-                  ),
-                ]),
-              ),
             ]),
             const SizedBox(height: 30),
             Expanded(
@@ -752,30 +761,78 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(week.length, (i) {
                   final d = week[i];
-                  final val = data[i].toDouble();
-                  final frac = val / max;
-                  final barH = math.max(4.0, 120 * frac);
+                  final val = data[i];
+                  final frac = val / chartMax;
+                  final barH = math.max(6.0, 140 * frac);
                   final label = DateFormat('E').format(d.date).substring(0, 1);
                   final isZero = val == 0;
+                  final isToday = i == week.length - 1;
 
                   return Expanded(
                     child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                      Text(isZero ? '0' : (isKm ? val.toStringAsFixed(1) : val.round().toString()), 
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isZero ? Colors.white.withOpacity(0.2) : Colors.white)),
+                      if (val > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            isKm ? val.toStringAsFixed(1) : (val > 1000 ? '${(val/1000).toStringAsFixed(1)}k' : val.round().toString()),
+                            style: TextStyle(
+                              fontSize: 9, 
+                              fontWeight: FontWeight.w800, 
+                              color: isToday ? color : Colors.white.withOpacity(0.9)
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 13), // Placeholder for zero values to keep alignment
                       const SizedBox(height: 8),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutBack,
-                        height: isZero ? 4.0 : barH.toDouble(),
-                        width: 14,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(100),
-                          color: isZero ? Colors.white.withOpacity(0.1) : color,
-                          boxShadow: isZero ? [] : [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)],
-                        ),
+                      Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          // Background track
+                          Container(
+                            height: 140,
+                            width: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                          ),
+                          // Active bar
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 800),
+                            curve: Curves.elasticOut,
+                            height: barH.toDouble(),
+                            width: 12,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(100),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  color.withOpacity(0.8),
+                                  color,
+                                ],
+                              ),
+                              boxShadow: isZero ? [] : [
+                                BoxShadow(color: color.withOpacity(0.4), blurRadius: 8, spreadRadius: 1)
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
-                      Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w600)),
+                      Text(
+                        label, 
+                        style: TextStyle(
+                          fontSize: 12, 
+                          color: isToday ? color : Colors.white.withOpacity(0.4), 
+                          fontWeight: isToday ? FontWeight.w900 : FontWeight.w600
+                        )
+                      ),
                     ]),
                   );
                 }),

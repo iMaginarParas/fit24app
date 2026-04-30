@@ -711,6 +711,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
             _statEdit('Age', '$_age', () => setState(() => _age--), () => setState(() => _age++)),
             _statEdit('Weight (kg)', _weight.toStringAsFixed(1), () => setState(() => _weight -= 0.5), () => setState(() => _weight += 0.5)),
             _statEdit('Height (cm)', '$_height', () => setState(() => _height--), () => setState(() => _height++)),
+            _statEdit('Daily Goal', '$_goal', () => setState(() => _goal -= 500), () => setState(() => _goal += 500)),
           ])),
         ]),
       ),
