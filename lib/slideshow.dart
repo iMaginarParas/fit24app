@@ -29,7 +29,7 @@ class _SlideshowPageState extends State<SlideshowPage> {
     ),
     SlideData(
       title: 'Earn Rewards',
-      subtitle: 'Convert every step into Fit Points and level up.',
+      subtitle: 'Convert every step into Fit24 and level up.',
       imageUrl: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?q=80&w=1000',
     ),
   ];

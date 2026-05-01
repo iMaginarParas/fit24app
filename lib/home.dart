@@ -295,8 +295,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               fontSize: 40, fontWeight: FontWeight.w900,
               color: Colors.white, height: 1.1, letterSpacing: -1)),
           const SizedBox(height: 14),
-          Text('Every step earns Fit Points.\nStart your fitness journey today.',
-              style: TextStyle(fontSize: 16,
+          Text('Every step earns Fit24 and unlocks rewards.', style: TextStyle(fontSize: 16,
                   color: Colors.white.withOpacity(0.7), height: 1.6)),
           const SizedBox(height: 48),
           GreenBtn('Allow Activity Access', onTap: _grantPerm),
@@ -341,7 +340,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             const SizedBox(height: 20),
             _hcBenefit(Icons.history_rounded, 'Last 30 days of steps imported'),
             const SizedBox(height: 10),
-            _hcBenefit(Icons.bolt_rounded, 'Instant Fit Points on past steps'),
+            _hcBenefit(Icons.bolt_rounded, 'Instant Fit24 on past steps'),
             const SizedBox(height: 10),
             _hcBenefit(Icons.bar_chart_rounded, 'Full weekly & monthly charts'),
           ]),
@@ -493,7 +492,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               style: const TextStyle(
                   fontSize: 14, color: Colors.white, fontWeight: FontWeight.w900)),
           const SizedBox(width: 5),
-          const Text('Fit Points',
+          const Text('Fit24',
               style: TextStyle(
                   fontSize: 11, color: cCyan, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
         ]),
@@ -885,7 +884,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             ),
             const SizedBox(width: 14),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Fit Points', style: TextStyle(
+              Text('Fit24', style: TextStyle(
                   fontSize: 12, color: Colors.white.withOpacity(0.7))),
               Text(NumberFormat('#,###').format(pts),
                   style: const TextStyle(

@@ -1049,7 +1049,7 @@ class _PermissionsStepState extends State<_PermissionsStep> {
       _permTile(
         Icons.directions_run_rounded,
         'Physical Activity',
-        'Used to count your steps and calculate Fit Points.',
+        'Used to count your steps and calculate Fit24.',
         _activity,
       ),
       const SizedBox(height: 16),

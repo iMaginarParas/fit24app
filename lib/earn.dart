@@ -188,7 +188,7 @@ class _EP extends ConsumerState<EarnPage> {
             ),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-               Text('FIT POINTS', style: TextStyle(
+               Text('FIT24', style: TextStyle(
                   fontSize: 10, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 2, fontWeight: FontWeight.w700)),
               Text(NumberFormat('#,###').format(points), style: const TextStyle(
