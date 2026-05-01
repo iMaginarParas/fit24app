@@ -53,13 +53,13 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   late AnimationController _spin;
   int _disp = 0, _last = -1;
   Timer? _tick;
-  Timer? _syncTimer;
-  Timer? _healthSyncTimer;
   int _lastSynced = 0;
   late ScrollController _sc;
   static const kGoal = 10000;
   int _chartIdx = 0;
   final PageController _pc = PageController();
+  int _homePeriod = 0; // 0: Today, 1: Week
+  double _dragOffset = 0;
 
   // BOLD THEME COLORS
   static const Color cCyan = Color(0xFF00E5FF);
@@ -100,35 +100,8 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   }
 
   void _startTracking() {
-    _sub = _events.receiveBroadcastStream().listen((v) {
-      if (mounted) {
-        final newSteps = v as int;
-        
-        // Goal Notification Logic
-        final profile = ref.read(profileDataProvider).valueOrNull;
-        final goal = profile?['daily_goal'] ?? 8000;
-        if (newSteps >= goal && _today < goal && _today > 0) {
-          NotificationService().showNotification(
-            id: 200,
-            title: 'Goal Achieved! 🏆',
-            body: "Congratulations! You've reached your daily goal of $goal steps.",
-          );
-        }
-
-        setState(() => _today = newSteps);
-        _animTo(newSteps);
-        if (newSteps - _lastSynced > 100) _syncToBackend();
-      }
-    });
-    
-    // Fetch initial state from backend or local
+    // Initial health sync and step fetch
     _initSteps();
-
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) => _syncToBackend());
-    _healthSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) => HealthService.syncCurrentStats());
-    
-    // Initial health sync
-    HealthService.syncCurrentStats();
     _checkDailyPointSync();
   }
 
@@ -149,6 +122,9 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initSteps() async {
     try {
+      // Prioritize Health Connect sync on init
+      await HealthService.syncCurrentStats();
+      
       final api = ref.read(apiServiceProvider);
       final todayData = await api.getTodaySteps();
       final backendSteps = (todayData['steps'] as num?)?.toInt() ?? 0;
@@ -165,14 +141,6 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _loadHist();
   }
 
-  Future<void> _syncToBackend() async {
-    if (_today <= _lastSynced || _today == 0) return;
-    try {
-      final api = ref.read(apiServiceProvider);
-      await api.syncSteps(_today);
-      _lastSynced = _today;
-    } catch (_) {}
-  }
 
   Future<void> _loadHist() async {
     try {
@@ -235,8 +203,6 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     _pc.dispose();
     _tick?.cancel();
     _sub?.cancel();
-    _syncTimer?.cancel();
-    _healthSyncTimer?.cancel();
     super.dispose();
   }
 
@@ -393,6 +359,25 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   bool _refreshing = false;
 
   Widget _dashboard() {
+    // Sync UI with global todayStepsProvider
+    ref.listen<int>(todayStepsProvider, (prev, next) {
+      if (mounted) {
+        setState(() => _today = next);
+        _animTo(next);
+
+        // Goal Notification Logic
+        final profile = ref.read(profileDataProvider).valueOrNull;
+        final goal = profile?['daily_goal'] ?? 8000;
+        if (next >= goal && (prev ?? 0) < goal && (prev ?? 0) > 0) {
+          NotificationService().showNotification(
+            id: 200,
+            title: 'Goal Achieved! 🏆',
+            body: "Congratulations! You've reached your daily goal of $goal steps.",
+          );
+        }
+      }
+    });
+
     final pct = (_disp / kGoal).clamp(0.0, 1.0);
     final pts = ref.watch(userPointsProvider);
     final displayPts = (pts + math.max(0, _today - _lastSynced)).toInt();
@@ -404,6 +389,20 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     final p = profileAsync.valueOrNull ?? {};
     final name = p['name'] as String? ?? 'User';
 
+    // Calculate Week Totals
+    final weekTotalSteps = week.fold(0, (sum, d) => sum + d.steps);
+    final weekTotalDist = week.fold(0.0, (sum, d) => sum + (d.steps * 0.0008));
+    final weekTotalCal = week.fold(0.0, (sum, d) => sum + (d.steps * 0.05));
+    final weekTotalMin = week.fold(0.0, (sum, d) => sum + (d.steps / 100));
+
+    final displaySteps = _homePeriod == 0 ? _disp : weekTotalSteps;
+    final displayGoal = _homePeriod == 0 ? kGoal : kGoal * 7;
+    final displayPct = (displaySteps / displayGoal).clamp(0.0, 1.0);
+    
+    final displayDist = _homePeriod == 0 ? (_disp * 0.00075) : weekTotalDist;
+    final displayCal = _homePeriod == 0 ? (_disp * 0.05) : weekTotalCal;
+    final displayMin = _homePeriod == 0 ? (_disp / 100) : weekTotalMin;
+
 
 
     return Scaffold(
@@ -413,8 +412,10 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
         backgroundColor: const Color(0xFF111111),
         strokeWidth: 3,
         displacement: 40,
+        edgeOffset: 20,
         onRefresh: () async {
           try {
+            await HealthService.syncCurrentStats();
             final method = MethodChannel('com.fit24app/steps');
             final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
             final currentSteps = _hist.isNotEmpty ? (_hist.values.first) : 0; 
@@ -442,19 +443,37 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             Positioned.fill(
               child: Container(color: Colors.black.withOpacity(0.6)),
             ),
-            CustomScrollView(
-              controller: _sc,
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                SliverToBoxAdapter(child: SafeArea(bottom: false,
-                    child: _topBar(lv, displayPts, p))),
-                SliverToBoxAdapter(child: _pointsCard(displayPts, lv)),
-                SliverToBoxAdapter(child: _mainRingCard(pct)),
-                SliverToBoxAdapter(child: _metricsRow()),
-                SliverToBoxAdapter(child: _dailyStepsChart(week)),
-                SliverToBoxAdapter(child: _milestonesSection()),
-                const SliverToBoxAdapter(child: SizedBox(height: 110)),
-              ],
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification) {
+                  if (notification.metrics.pixels < 0) {
+                    setState(() => _dragOffset = notification.metrics.pixels);
+                  } else {
+                    if (_dragOffset != 0) setState(() => _dragOffset = 0);
+                  }
+                }
+                if (notification is ScrollEndNotification) {
+                  setState(() => _dragOffset = 0);
+                }
+                return false;
+              },
+              child: Transform.translate(
+                offset: Offset(0, -_dragOffset),
+                child: CustomScrollView(
+                  controller: _sc,
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  slivers: [
+                    SliverToBoxAdapter(child: SafeArea(bottom: false,
+                        child: _topBar(lv, displayPts, p))),
+                    SliverToBoxAdapter(child: _pointsCard(displayPts, lv)),
+                    SliverToBoxAdapter(child: _mainRingCard(displayPct, displaySteps, displayGoal)),
+                    SliverToBoxAdapter(child: _metricsRow(displayDist, displayCal, displayMin)),
+                    SliverToBoxAdapter(child: _dailyStepsChart(week)),
+                    SliverToBoxAdapter(child: _milestonesSection()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -515,7 +534,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
   // ── Main step ring — Bold High Contrast ───────────────────────────────────
 
-  Widget _mainRingCard(double pct) {
+  Widget _mainRingCard(double displayPct, int displaySteps, int displayGoal) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: ClipRRect(
@@ -535,71 +554,95 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
               padding: const EdgeInsets.all(24),
               child: Column(children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Running Activity', style: TextStyle(
-                        fontSize: 13, color: Colors.white.withOpacity(0.7))),
-                    const SizedBox(height: 2),
-                    const Text('Today', style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ]),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(
+                        children: [
+                          Text('Daily Activity', style: TextStyle(
+                              fontSize: 13, color: Colors.white.withOpacity(0.7))),
+                          const SizedBox(width: 6),
+                          FutureBuilder<bool>(
+                            future: HealthService.isAuthorized(),
+                            builder: (context, snapshot) {
+                              if (snapshot.data == true) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.green.withOpacity(0.4)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.check_circle_outline_rounded, size: 10, color: Colors.green),
+                                      SizedBox(width: 3),
+                                      Text('HC Sync', style: TextStyle(fontSize: 8, color: Colors.green, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      const Text('Report', style: TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ]),
                   Row(children: [
-                    Chip24('Today', color: cCyan, filled: true),
+                    GestureDetector(
+                      onTap: () => setState(() => _homePeriod = 0),
+                      child: Chip24('Today', color: cCyan, filled: _homePeriod == 0)
+                    ),
                     const SizedBox(width: 8),
-                    Chip24('Week', color: Colors.white.withOpacity(0.2)),
+                    GestureDetector(
+                      onTap: () => setState(() => _homePeriod = 1),
+                      child: Chip24('Week', color: cCyan, filled: _homePeriod == 1)
+                    ),
                   ]),
                 ]),
                 const SizedBox(height: 28),
                 
                 AnimatedBuilder(
-                  animation: _pulse,
+                  animation: Listenable.merge([_pulse, _spin]),
                   builder: (_, __) => SizedBox(
                     width: 220, height: 220,
                     child: Stack(alignment: Alignment.center, children: [
                       CustomPaint(
                         size: const Size(220, 220),
-                        painter: _PremiumOrbPainter(pct, _pulse.value),
+                        painter: _LiquidOrbPainter(displayPct, _pulse.value, _spin.value),
                       ),
                       Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(NumberFormat('#,###').format(_disp),
-                          style: const TextStyle(
-                              fontSize: 44, fontWeight: FontWeight.w900,
-                              color: Colors.white, letterSpacing: -2)),
-                        const Text('Steps', style: TextStyle(
-                            fontSize: 14, color: Colors.white, fontWeight: FontWeight.w600)),
+                        AnimatedBuilder(
+                          animation: _pulse,
+                          builder: (context, child) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: cCyan.withOpacity(0.3 * _pulse.value),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                )
+                              ],
+                            ),
+                            child: child,
+                          ),
+                          child: Text(NumberFormat('#,###').format(displaySteps),
+                            style: const TextStyle(
+                                fontSize: 44, fontWeight: FontWeight.w900,
+                                color: Colors.white, letterSpacing: -2)),
+                        ),
+                        Text('GOAL: ${NumberFormat('#,###').format(displayGoal)}', style: TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w900,
+                            color: Colors.white.withOpacity(0.35), letterSpacing: 1.5)),
                       ]),
                     ]),
                   ),
                 ),
-                
-                const SizedBox(height: 20),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('Daily Goal', style: TextStyle(
-                        fontSize: 13, color: Colors.white.withOpacity(0.7))),
-                    Text('${NumberFormat('#,###').format(_disp)} / ${NumberFormat('#,###').format(kGoal)}',
-                        style: const TextStyle(
-                            fontSize: 13, color: cCyan, fontWeight: FontWeight.w900)),
-                  ]),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(100),
-                    child: Stack(children: [
-                      Container(height: 8, color: Colors.white.withOpacity(0.1)),
-                      LayoutBuilder(builder: (c, cx) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 700),
-                        height: 8.0,
-                        width: cx.maxWidth * pct,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [cCyan, cPink]
-                          ),
-                          borderRadius: BorderRadius.circular(100),
-                          boxShadow: [BoxShadow(color: cPink.withOpacity(0.6), blurRadius: 12)],
-                        ),
-                      )),
-                    ]),
-                  ),
-                ]),
+                const SizedBox(height: 24),
+                _liquidMetricsSummary(displayPct),
               ]),
             ),
           ),
@@ -608,51 +651,56 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // ── Metrics row ───────────────────────────────────────────────────────────
-
-  Widget _metricsRow() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-    child: Row(children: [
-      Expanded(child: _metricCard(
-        Icons.directions_walk_rounded, cCyan,
-        '${(_disp * 0.0008).toStringAsFixed(2)} km', 'Distance')), 
-      const SizedBox(width: 10),
-      Expanded(child: _metricCard(
-        Icons.local_fire_department_rounded, cPink,
-        '${(_disp * 0.05).toStringAsFixed(0)}', 'Calories')), 
-      const SizedBox(width: 10),
-      Expanded(child: _metricCard(
-        Icons.access_time_rounded, cAmber,
-        '${(_disp / 100).toStringAsFixed(0)} min', 'Active')), 
-    ]),
+  Widget _liquidMetricsSummary(double pct) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      _orbMiniStat('Completion', '${(pct * 100).toInt()}%', cCyan),
+      _vDivider(),
+      _orbMiniStat('Activity', _today > 5000 ? 'High' : 'Active', cPink),
+    ],
   );
 
-  Widget _metricCard(IconData icon, Color accent, String val, String label) =>
-    Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: accent, size: 18),
-        ),
-        const SizedBox(height: 10),
-        Text(val, style: const TextStyle(
-            fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-        Text(label, style: TextStyle(
-            fontSize: 11, color: Colors.white.withOpacity(0.7))),
+  Widget _vDivider() => Container(width: 1, height: 20, margin: const EdgeInsets.symmetric(horizontal: 20), color: Colors.white10);
+
+  Widget _orbMiniStat(String l, String v, Color c) => Column(children: [
+    Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: c)),
+    Text(l, style: TextStyle(fontSize: 10, color: Colors.white24, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+  ]);
+
+  // ── Metrics row ───────────────────────────────────────────────────────────
+
+  Widget _metricsRow(double d, double c, double m) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Row(children: [
+        Expanded(child: _metricGlassCard('DISTANCE', d.toStringAsFixed(2), 'Km', Icons.location_on_rounded, cCyan)),
+        const SizedBox(width: 12),
+        Expanded(child: _metricGlassCard('CALORIES', c.round().toString(), 'Kcal', Icons.local_fire_department_rounded, cPink)),
+        const SizedBox(width: 12),
+        Expanded(child: _metricGlassCard('ACTIVE', m.round().toString(), 'Mins', Icons.timer_rounded, cAmber)),
       ]),
     );
+  }
 
+  Widget _metricGlassCard(String label, String val, String unit, IconData icon, Color color) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.04),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.5),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 20, color: color.withOpacity(0.6)),
+      const SizedBox(height: 14),
+      Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+        Text(val, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+        const SizedBox(width: 4),
+        Text(unit, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.25))),
+      ]),
+      const SizedBox(height: 4),
+      Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.3), letterSpacing: 1)),
+    ]),
+  );
 
   // ── Week section (Sliding Metrics) ──────────────────────────────────────────
 

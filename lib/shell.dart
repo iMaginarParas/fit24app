@@ -45,6 +45,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     ref.watch(stepSyncProvider);
+    ref.watch(globalSyncProvider);
     
     return Scaffold(
       backgroundColor: kBg,

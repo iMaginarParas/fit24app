@@ -21,7 +21,7 @@ class MainActivity : FlutterActivity() {
     private var sink: EventChannel.EventSink? = null
     private lateinit var prefs: SharedPreferences
     private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        timeZone = TimeZone.getDefault()
     }
 
     private var hasSensor = false  // set in configureFlutterEngine, used in onRequestPermissionsResult

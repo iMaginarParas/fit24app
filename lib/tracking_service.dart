@@ -234,6 +234,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       'duration': state.duration,
       'steps': state.steps,
       'calories': calculateCalories(state.distance, state.type),
+      'fit_points': state.calculatePoints(),
       'route': state.route.map((l) => {'lat': l.latitude, 'lng': l.longitude}).toList(),
     };
 

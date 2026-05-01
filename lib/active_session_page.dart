@@ -127,20 +127,32 @@ class _ActiveSessionPageState extends ConsumerState<ActiveSessionPage> {
                 // ── MAIN DISTANCE ────────────────────────────────────────────
                 Column(
                   children: [
-                    Text(
-                      tracking.formattedDistance.replaceAll(RegExp(r'[a-zA-Z]'), '').trim(),
-                      style: const TextStyle(
-                        color: kGreen,
-                        fontSize: 110,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -5,
-                        height: 0.9,
+                    Container(
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: kGreen.withOpacity(0.25),
+                            blurRadius: 40,
+                            spreadRadius: 2,
+                          )
+                        ],
+                      ),
+                      child: Text(
+                        tracking.formattedDistance.replaceAll(RegExp(r'[a-zA-Z]'), '').trim(),
+                        style: const TextStyle(
+                          color: kGreen,
+                          fontSize: 110,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -5,
+                          height: 0.9,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 10),
                     Text(
                       tracking.distance < 1000 ? 'METERS' : 'KILOMETERS',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withOpacity(0.5),
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 4,
@@ -153,13 +165,13 @@ class _ActiveSessionPageState extends ConsumerState<ActiveSessionPage> {
 
                 // ── STATS BAR ────────────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _metric('CALORIES', '${tracking.calculateCalories()}'),
-                      _metric('PACE', '---'), // Placeholder or logic if available
-                      _metric('STEPS', '${tracking.steps}'),
+                      _metricGlass('CALORIES', '${tracking.calculateCalories()}', kPink),
+                      _metricGlass('PACE', '---', kCyan),
+                      _metricGlass('STEPS', '${tracking.steps}', kGreen),
                     ],
                   ),
                 ),
@@ -201,12 +213,20 @@ class _ActiveSessionPageState extends ConsumerState<ActiveSessionPage> {
     );
   }
 
-  Widget _metric(String l, String v) => Column(
-    children: [
-      Text(l, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 6),
-      Text(v, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-    ],
+  Widget _metricGlass(String l, String v, Color c) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.04),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(0.08)),
+    ),
+    child: Column(
+      children: [
+        Text(l, style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+        const SizedBox(height: 6),
+        Text(v, style: TextStyle(color: c, fontSize: 20, fontWeight: FontWeight.w900)),
+      ],
+    ),
   );
 
   Widget _controlBtn(IconData icon, String label, Color color, VoidCallback onTap) => GestureDetector(

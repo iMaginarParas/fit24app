@@ -13,6 +13,7 @@ import 'shell.dart';
 import 'tracking_service.dart';
 import 'notifications_settings_page.dart';
 import 'step_provider.dart';
+import 'health_service.dart';
 import 'points_provider.dart';
 
 class ActivityPage extends ConsumerStatefulWidget {
@@ -30,11 +31,12 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   List<dynamic> _sessions = [];
   bool _loading = true;
   int _totalSteps = 0;
-  ActivityType? _selectedType;
+  ActivityType? _selectedType = ActivityType.walking;
   int? _selIdx;
   late ScrollController _sc;
   int _chartIdx = 0;
   final PageController _pc = PageController();
+  double _dragOffset = 0;
 
   @override
   void initState() {
@@ -133,6 +135,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         displacement: 40,
         onRefresh: () async {
           try {
+            await HealthService.syncCurrentStats();
             final method = MethodChannel('com.fit24app/steps');
             final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
             final currentSteps = _history.isNotEmpty ? ((_history.first['steps'] as num?)?.toInt() ?? 0) : 0;
@@ -154,21 +157,39 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             Positioned.fill(
               child: Container(color: Colors.black.withOpacity(0.5)),
             ),
-            CustomScrollView(
-              controller: _sc,
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                SliverToBoxAdapter(child: _periodTabs()),
-                SliverToBoxAdapter(child: _mainStepCard(liveSteps)),
-                SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
-                SliverToBoxAdapter(child: _modeTotals()),
-                SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
-                SliverToBoxAdapter(child: _barChart(liveSteps)),
-                SliverToBoxAdapter(child: SectionHeader('Activity Log')),
-                SliverToBoxAdapter(child: _logList(liveSteps)),
-                const SliverToBoxAdapter(child: SizedBox(height: 110)),
-              ],
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification) {
+                  if (notification.metrics.pixels < 0) {
+                    setState(() => _dragOffset = notification.metrics.pixels);
+                  } else {
+                    if (_dragOffset != 0) setState(() => _dragOffset = 0);
+                  }
+                }
+                if (notification is ScrollEndNotification) {
+                  setState(() => _dragOffset = 0);
+                }
+                return false;
+              },
+              child: Transform.translate(
+                offset: Offset(0, -_dragOffset),
+                child: CustomScrollView(
+                  controller: _sc,
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  slivers: [
+                    SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                    SliverToBoxAdapter(child: _periodTabs()),
+                    SliverToBoxAdapter(child: _mainStepCard(liveSteps)),
+                    SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
+                    SliverToBoxAdapter(child: _modeTotals()),
+                    SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
+                    SliverToBoxAdapter(child: _barChart(liveSteps)),
+                    SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
+                    SliverToBoxAdapter(child: _sessionsList()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -187,13 +208,12 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           color: kCard,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           itemBuilder: (_) => [
-            const PopupMenuItem(value: null, child: Text('All Activities')),
             const PopupMenuItem(value: ActivityType.walking, child: Text('Walking')),
             const PopupMenuItem(value: ActivityType.running, child: Text('Running')),
             const PopupMenuItem(value: ActivityType.cycling, child: Text('Cycling')),
           ],
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(_selectedType == null ? 'All Activities' : _titleOf(_selectedType!), style: const TextStyle(
+            Text(_titleOf(_selectedType!), style: const TextStyle(
                 fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
           ]),
         ),
@@ -275,54 +295,65 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   );
 
   Widget _sessionsList() {
-    final filtered = _selectedType == null 
-        ? _sessions 
-        : _sessions.where((s) => ActivityType.values[(s['type'] as num).toInt()] == _selectedType).toList();
+    final filtered = _sessions.where((s) => ActivityType.values[(s['type'] as num).toInt()] == _selectedType).toList();
     if (filtered.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text('No sessions recorded for this activity.', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 13)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(18), border: Border.all(color: kBorder)),
+          child: Center(
+            child: Column(children: [
+              Icon(Icons.history_rounded, color: Colors.white.withOpacity(0.05), size: 40),
+              const SizedBox(height: 12),
+              Text('No ${_selectedType?.name} sessions yet', style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 13)),
+            ]),
+          ),
+        ),
       );
     }
-    return SizedBox(
-      height: 140,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: filtered.length,
-        itemBuilder: (context, i) {
-          final s = filtered[i];
-          final type = ActivityType.values[(s['type'] as num).toInt()];
-          final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
-          final date = DateTime.parse(s['date']);
-          
-          return GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionDetailPage(session: s))),
-            child: Container(
-              width: 160,
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: kCard, borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: kBorder),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Icon(type == ActivityType.walking ? Icons.directions_walk_rounded : 
-                       type == ActivityType.running ? Icons.directions_run_rounded : 
-                       Icons.directions_bike_rounded, color: kTeal, size: 18),
-                  const Spacer(),
-                  Text(DateFormat('MMM d').format(date), style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
-                ]),
-                const Spacer(),
-                Text(dist < 1000 ? '${dist.toStringAsFixed(0)}m' : '${(dist/1000).toStringAsFixed(1)}km', 
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                Text(type.name.toUpperCase(), style: const TextStyle(color: kTeal, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
-              ]),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: filtered.length,
+      itemBuilder: (context, i) {
+        final s = filtered[i];
+        final type = ActivityType.values[(s['type'] as num).toInt()];
+        final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
+        final date = DateTime.parse(s['date']);
+        final steps = (s['steps'] as num?)?.toInt() ?? 0;
+        final dur = (s['duration'] as num?)?.toInt() ?? 0;
+        final color = type == ActivityType.walking ? kTeal : type == ActivityType.running ? kCoral : kAmber;
+        
+        return GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionDetailPage(session: s))),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kCard, borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: kBorder),
             ),
-          );
-        },
-      ),
+            child: Row(children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
+                child: Icon(type == ActivityType.walking ? Icons.directions_walk_rounded : 
+                     type == ActivityType.running ? Icons.directions_run_rounded : 
+                     Icons.directions_bike_rounded, color: color, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(dist < 1000 ? '${dist.toStringAsFixed(0)}m' : '${(dist/1000).toStringAsFixed(2)}km', 
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                Text('${(dur/60).toStringAsFixed(1)} mins • $steps steps', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
+              ])),
+              Text(DateFormat('MMM d').format(date), style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
+            ]),
+          ),
+        );
+      },
     );
   }
 
@@ -361,40 +392,38 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   Widget _mainStepCard(int liveSteps) {
     final todayLog = _history.isNotEmpty ? _history.first : null;
     final dailySteps = todayLog != null ? (todayLog['steps'] as num?)?.toInt() ?? 0 : 0;
-    
+    final bestSteps = math.max(dailySteps, liveSteps);
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
     int filteredSteps = 0;
     double filteredDist = 0;
     int filteredCal = 0;
-    
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    
+
+    // If Walking is selected, we include background steps (liveSteps)
+    if (_selectedType == ActivityType.walking) {
+      filteredSteps = liveSteps;
+      filteredDist = liveSteps * 0.75; // 75cm per step standard
+      filteredCal = (liveSteps * 0.05).toInt();
+    }
+
+    // Add session data for the selected type
     for (var s in _sessions) {
       if (s['date'].startsWith(todayStr)) {
-        final type = ActivityType.values[s['type'] as int];
-        if (_selectedType == null || _selectedType == type) {
-          filteredSteps += (s['steps'] as num?)?.toInt() ?? 0;
+        final type = ActivityType.values[(s['type'] as num).toInt()];
+        if (_selectedType == type) {
+          // If it's a session, use its direct stats
           filteredDist += (s['distance'] as num?)?.toDouble() ?? 0.0;
           filteredCal += (s['calories'] as num?)?.toInt() ?? 0;
+          filteredSteps += (s['steps'] as num?)?.toInt() ?? 0;
         }
       }
     }
 
-    if (_selectedType == null || _selectedType == ActivityType.walking) {
-      final bestSteps = math.max(dailySteps, liveSteps);
-      filteredSteps += bestSteps;
-      filteredDist += (bestSteps * 0.75); // meters
-      filteredCal += (bestSteps ~/ 20);
-    }
-
-    final totalTodaySteps = filteredSteps;
     double totalDistKm = filteredDist / 1000.0;
     int totalCal = filteredCal;
-    
-    final isStepBased = _selectedType == null || _selectedType == ActivityType.walking;
-    final displayVal = isStepBased 
-        ? NumberFormat('#,###').format(totalTodaySteps)
-        : (totalDistKm < 1 ? '${(totalDistKm * 1000).toStringAsFixed(0)}' : '${totalDistKm.toStringAsFixed(2)}');
-    final displayUnit = isStepBased ? 'Steps' : (totalDistKm < 1 ? 'Meters' : 'Kilometers');
+
+    final displayVal = (totalDistKm < 1 ? filteredDist.toStringAsFixed(0) : totalDistKm.toStringAsFixed(2));
+    final displayUnit = (totalDistKm < 1 ? 'Meters' : 'Kilometers');
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -409,12 +438,12 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             width: 130, height: 130,
             child: Stack(alignment: Alignment.center, children: [
               CustomPaint(size: const Size(130, 130),
-                  painter: _MiniRing(isStepBased ? totalTodaySteps : (totalDistKm * 1000).toInt(), isStepBased ? 10000 : 5000, kGreen)),
+                  painter: _MiniRing((totalDistKm * 1000).toInt(), 5000, kGreen)),
               Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(displayVal, style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
-                Text(displayUnit, style: TextStyle(
-                    fontSize: 11, color: Colors.white.withOpacity(0.4))),
+                    fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                Text(displayUnit.toUpperCase(), style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.35), letterSpacing: 1)),
               ]),
             ]),
           ),
@@ -467,12 +496,13 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
             onPageChanged: (i) => setState(() => _chartIdx = i),
             children: [
               _metricChartSlide(
-                'Steps', 
+                'Distance', 
                 liveSteps, 
-                (d) => (d['steps'] as num?)?.toInt() ?? 0, 
-                kGreen, 
-                'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=600',
-                'Steps'
+                (d) => (((d['steps'] as num?)?.toInt() ?? 0) * 0.75) / 1000.0, 
+                kBlue, 
+                'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=600',
+                'Km',
+                isKm: true
               ),
               _metricChartSlide(
                 'Calories', 
@@ -482,22 +512,13 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=600',
                 'Kcal'
               ),
-              _metricChartSlide(
-                'Distance', 
-                liveSteps, 
-                (d) => (((d['steps'] as num?)?.toInt() ?? 0) * 0.75) / 1000.0, 
-                kBlue, 
-                'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=600',
-                'Km',
-                isKm: true
-              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (i) => _chartDot(i == _chartIdx)),
+          children: List.generate(2, (i) => _chartDot(i == _chartIdx)),
         ),
       ],
     );
@@ -529,29 +550,20 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       );
       
       double totalVal = 0;
-      if (_selectedType == null || _selectedType == ActivityType.walking) {
-        double s = valFn(histEntry).toDouble();
-        if (i == 0) {
-          if (title == 'Steps') {
-            s = math.max(s, liveSteps.toDouble());
-          } else if (title == 'Calories') {
-            s = math.max(s, (liveSteps ~/ 20).toDouble());
-          } else if (title == 'Distance') {
-            s = math.max(s, (liveSteps * 0.75) / 1000.0);
-          }
-        }
-        totalVal += s;
-      }
-      
+      double dayBestSteps = (histEntry['steps'] as num?)?.toDouble() ?? 0.0;
+      if (i == 0) dayBestSteps = math.max(dayBestSteps, liveSteps.toDouble());
+
       for (var s in _sessions) {
         if (s['date'].startsWith(dateStr)) {
           final type = ActivityType.values[s['type'] as int];
-          if (_selectedType == null || _selectedType == type) {
-            final sessSteps = (s['steps'] as num?)?.toInt() ?? 0;
-            final sessDist = (s['distance'] as num?)?.toDouble() ?? 0.0;
-            if (title == 'Steps') totalVal += sessSteps;
-            else if (title == 'Calories') totalVal += (s['calories'] as num?)?.toInt() ?? 0;
-            else if (title == 'Distance') totalVal += sessDist / 1000.0;
+          if (type == _selectedType) {
+            final sSteps = (s['steps'] as num?)?.toDouble() ?? 0.0;
+            final sDist = (s['distance'] as num?)?.toDouble() ?? 0.0;
+            final sCal = (s['calories'] as num?)?.toDouble() ?? 0.0;
+
+            if (title == 'Steps') totalVal += sSteps;
+            else if (title == 'Calories') totalVal += sCal;
+            else if (title == 'Distance') totalVal += sDist / 1000.0;
           }
         }
       }
@@ -664,87 +676,6 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     );
   }
 
-  Widget _logList(int liveSteps) {
-    if (_history.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(Icons.history_rounded, color: Colors.white.withOpacity(0.05), size: 40),
-              const SizedBox(height: 12),
-              Text('No activities recorded yet', 
-                style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 13)),
-            ],
-          ),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: _history.map((d) {
-          final date = DateTime.parse(d['log_date']);
-          final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
-          int steps = (d['steps'] as num?)?.toInt() ?? 0;
-          if (isToday) steps = math.max(steps, liveSteps);
-          
-          final cal = (steps ~/ 20); // Simplified for log
-          final dist = (steps * 0.75) / 1000.0;
-          
-          String dayLabel = DateFormat('MMM d').format(date);
-          if (isToday) dayLabel = 'Today';
-          else if (DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 1)))) dayLabel = 'Yesterday';
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _logCard(
-              dayLabel, 
-              '${NumberFormat('#,###').format(steps)} steps', 
-              '${dist.toStringAsFixed(1)} km • $cal cal • ${steps ~/ 100} min', 
-              isToday ? kGreen : kBlue, 
-              isToday ? Icons.directions_run_rounded : Icons.directions_walk_rounded, 
-              isToday
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _logCard(String day, String steps, String meta,
-      Color color, IconData icon, bool isToday) =>
-    Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kCard, borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isToday ? color.withOpacity(0.35) : kBorder),
-      ),
-      child: Row(children: [
-        Container(
-          width: 46, height: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: color.withOpacity(0.12),
-            border: Border.all(color: color.withOpacity(0.25)),
-          ),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(day, style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700,
-                color: isToday ? color : Colors.white)),
-            Text(steps, style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w900, color: color)),
-          ]),
-          const SizedBox(height: 4),
-          Text(meta, style: TextStyle(
-              fontSize: 11, color: Colors.white.withOpacity(0.35))),
-        ])),
-      ]),
-    );
 
   String _titleOf(ActivityType t) => t == ActivityType.walking ? 'Walking Activity' : 
                                     t == ActivityType.running ? 'Running Activity' : 

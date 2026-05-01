@@ -14,12 +14,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:country_picker/country_picker.dart';
 import 'api_service.dart';
 import 'auth_state.dart';
 import 'onboarding.dart';
 import 'slideshow.dart';
 import 'shell.dart';
 import 'config_provider.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 // ── API base ──────────────────────────────────────────────────────────────────
 // API base (managed by ApiService)
@@ -224,6 +226,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   int     _countdown = 0;
   Timer?  _timer;
 
+  Country _selectedCountry = Country.parse('IN');
+
   late AnimationController _fadeCtrl;
   late Animation<double>   _fadeAnim;
 
@@ -251,8 +255,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   String get _e164 {
     final raw = _phoneCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
     if (raw.startsWith('+')) return raw;
-    if (raw.startsWith('0')) return '+91${raw.substring(1)}';
-    return '+91$raw';
+    final dial = _selectedCountry.phoneCode;
+    if (raw.startsWith('0')) return '+$dial${raw.substring(1)}';
+    return '+$dial$raw';
   }
 
   String get _otp => _otpCtrls.map((c) => c.text.trim()).join();
@@ -390,7 +395,47 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         if (mounted) _otpFocus[0].requestFocus();
       }
     } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final googleSignIn = GoogleSignIn(
+        serverClientId: '257460994920-oe4o0s30oigen7irlfqpc8dciluruk0k.apps.googleusercontent.com',
+        scopes: ['email', 'profile'],
+      );
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        setState(() => _loading = false);
+        return;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+
+      if (idToken == null) {
+        throw Exception('Failed to get ID token from Google');
+      }
+
+      final api = ref.read(apiServiceProvider);
+      final b = await api.signInWithGoogle(idToken);
+
+      final accessToken = b['tokens']['access_token'] as String;
+      final refreshToken = b['tokens']['refresh_token'] as String;
+      final userId = b['user']['id'] as String;
+      final phone = b['user']['phone'] as String? ?? 'google_user';
+
+      await ref.read(authProvider.notifier).signIn(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        userId: userId,
+        phone: phone,
+      );
+    } catch (e) {
+      _err('Google Sign-In failed: ${e.toString()}');
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -454,9 +499,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                       const SizedBox(height: 28),
                       if (_error != null) ...[_errorBanner(), const SizedBox(height: 12)],
                       _primaryBtn(),
-                      const SizedBox(height: 22),
-                      if (_step == _Step.phone) _modeToggle(),
-                      if (_step == _Step.otp)   _resendRow(),
+                      const SizedBox(height: 16),
+                      if (_step == _Step.phone) ...[
+                        _googleBtn(),
+                        const SizedBox(height: 22),
+                        _modeToggle(),
+                      ],
+                      if (_step == _Step.otp) _resendRow(),
                       const SizedBox(height: 40),
                       _termsNote(),
                       const SizedBox(height: 32),
@@ -530,49 +579,72 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
               color: Colors.white.withOpacity(0.45))),
       const SizedBox(height: 8),
-      Container(
-        decoration: BoxDecoration(
-          color: kCard, borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: kBorder),
-        ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 17),
-            decoration: const BoxDecoration(
-              border: Border(right: BorderSide(color: kBorder, width: 1)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('🇮🇳', style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 6),
-              Text('+91', style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w800,
-                  color: Colors.white.withOpacity(0.75))),
-              const SizedBox(width: 3),
-              Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 18, color: Colors.white.withOpacity(0.25)),
-            ]),
-          ),
-          Expanded(
-            child: TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(
-                  fontSize: 19, color: Colors.white,
-                  fontWeight: FontWeight.w700, letterSpacing: 2),
-              decoration: InputDecoration(
-                hintText: '98765 43210',
-                hintStyle: TextStyle(
-                    fontSize: 18, color: Colors.white.withOpacity(0.15),
-                    fontWeight: FontWeight.w500, letterSpacing: 2),
-                border: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      GestureDetector(
+        onTap: () {
+          showCountryPicker(
+            context: context,
+            showPhoneCode: true,
+            onSelect: (c) => setState(() => _selectedCountry = c),
+            countryListTheme: CountryListThemeData(
+              backgroundColor: kBg,
+              textStyle: const TextStyle(color: Colors.white, fontSize: 16),
+              searchTextStyle: const TextStyle(color: Colors.white, fontSize: 16),
+              inputDecoration: InputDecoration(
+                hintText: 'Search country...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+                prefixIcon: const Icon(Icons.search, color: kGreen),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: kBorder),
+                ),
               ),
-              onSubmitted: (_) => _sendOtp(),
             ),
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: kCard, borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: kBorder),
           ),
-        ]),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 17),
+              decoration: const BoxDecoration(
+                border: Border(right: BorderSide(color: kBorder, width: 1)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(_selectedCountry.flagEmoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 6),
+                Text('+${_selectedCountry.phoneCode}', style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w800,
+                    color: Colors.white.withOpacity(0.75))),
+                const SizedBox(width: 3),
+                Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 18, color: Colors.white.withOpacity(0.25)),
+              ]),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(
+                    fontSize: 19, color: Colors.white,
+                    fontWeight: FontWeight.w700, letterSpacing: 2),
+                decoration: InputDecoration(
+                  hintText: '98765 43210',
+                  hintStyle: TextStyle(
+                      fontSize: 18, color: Colors.white.withOpacity(0.15),
+                      fontWeight: FontWeight.w500, letterSpacing: 2),
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+                ),
+                onSubmitted: (_) => _sendOtp(),
+              ),
+            ),
+          ]),
+        ),
       ),
     ],
   );
@@ -672,6 +744,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                     fontSize: 16, fontWeight: FontWeight.w800,
                     color: Colors.black),
               ),
+      ),
+    ),
+  );
+
+  Widget _googleBtn() => GestureDetector(
+    onTap: _loading ? null : _signInWithGoogle,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.network(
+            'https://www.image2url.com/r2/default/images/1776158261618-440cb3d6-dcff-4851-9f4e-0d6ffc5851d8.png', // I'll use a better one or just icon
+            height: 20,
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'Continue with Google',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+        ],
       ),
     ),
   );

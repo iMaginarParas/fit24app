@@ -24,6 +24,7 @@ class _EP extends ConsumerState<EarnPage> {
   List<dynamic> _todaySessions = [];
   List<dynamic> _challenges = [];
   late ScrollController _sc;
+  double _dragOffset = 0;
 
   @override
   void initState() {
@@ -95,25 +96,45 @@ class _EP extends ConsumerState<EarnPage> {
             Positioned.fill(
               child: Container(color: Colors.black.withOpacity(0.55)),
             ),
-            CustomScrollView(
-              controller: _sc,
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                SliverToBoxAdapter(child: _balanceCard(displayPoints, liveSteps)),
-                SliverToBoxAdapter(child: _rateCards()),
-                SliverToBoxAdapter(child: SectionHeader('Today\'s Activity')),
-                SliverToBoxAdapter(child: _activityBreakdown(liveSteps)),
-                SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
-                })),
-                SliverToBoxAdapter(child: _challengesList(liveSteps)),
-                SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
-                })),
-                SliverToBoxAdapter(child: _redeemRow()),
-                const SliverToBoxAdapter(child: SizedBox(height: 110)),
-              ],
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification) {
+                  if (notification.metrics.pixels < 0) {
+                    setState(() => _dragOffset = notification.metrics.pixels);
+                  } else {
+                    if (_dragOffset != 0) setState(() => _dragOffset = 0);
+                  }
+                }
+                if (notification is ScrollEndNotification) {
+                  setState(() => _dragOffset = 0);
+                }
+                return false;
+              },
+              child: Transform.translate(
+                offset: Offset(0, -_dragOffset),
+                child: CustomScrollView(
+                  controller: _sc,
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  slivers: [
+                    SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                    SliverToBoxAdapter(child: _balanceCard(displayPoints, liveSteps)),
+                    SliverToBoxAdapter(child: _rateCards()),
+                    SliverToBoxAdapter(child: SectionHeader('Today\'s Activity')),
+                    SliverToBoxAdapter(child: _activityBreakdown(liveSteps)),
+                    SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
+                    })),
+                    SliverToBoxAdapter(child: _challengesList(liveSteps)),
+                    SliverToBoxAdapter(child: SectionHeader('Recent Transactions')),
+                    SliverToBoxAdapter(child: _transactionFeed()),
+                    SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+                    })),
+                    SliverToBoxAdapter(child: _redeemRow()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -520,6 +541,46 @@ class _EP extends ConsumerState<EarnPage> {
         ]),
       ),
     );
+
+  Widget _transactionFeed() {
+    final liveSteps = ref.watch(liveStepProvider).valueOrNull ?? _todaySteps;
+    final unsynced = math.max(0, liveSteps - _todaySteps).toInt();
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          if (unsynced > 0)
+            _transactionItem('Walking', '+$unsynced pts', 'Pending sync', kGreen, Icons.directions_walk_rounded),
+          _transactionItem('Daily Bonus', '+500 pts', 'Completed', kAmber, Icons.wb_sunny_rounded),
+          _transactionItem('Evening Run', '+1,240 pts', 'Synced', kBlue, Icons.run_circle_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _transactionItem(String title, String val, String status, Color color, IconData icon) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.03),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white.withOpacity(0.06)),
+    ),
+    child: Row(children: [
+      Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: color, size: 18),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+        Text(status, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w600)),
+      ])),
+      Text(val, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: color)),
+    ]),
+  );
 }
 
 class _HexBg extends CustomPainter {

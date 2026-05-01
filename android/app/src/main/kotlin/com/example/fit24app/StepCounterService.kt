@@ -24,7 +24,7 @@ class StepCounterService : Service(), SensorEventListener {
     private var externalSteps: Int = 0
     private var lastSavedDate: String = ""
     private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        timeZone = TimeZone.getDefault()
     }
     private lateinit var prefs: android.content.SharedPreferences
 

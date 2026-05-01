@@ -72,6 +72,16 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  Future<Map<String, dynamic>> signInWithGoogle(String idToken) async {
+    final res = await http.post(
+      Uri.parse('$kBaseUrl/auth/google'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'id_token': idToken}),
+    );
+    if (res.statusCode != 200) throw Exception('Failed to sign in with Google: ${res.body}');
+    return jsonDecode(res.body);
+  }
+
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
     final res = await http.post(
       Uri.parse('$kBaseUrl/auth/refresh-token?refresh_token=$refreshToken'),
@@ -83,9 +93,11 @@ class ApiService {
   // ── Steps ──────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> syncSteps(int steps, {DateTime? date}) async {
+    final effectiveDate = date ?? DateTime.now();
+    final dateStr = effectiveDate.toIso8601String().split('T')[0];
     final body = {
       'steps': steps,
-      if (date != null) 'log_date': date.toIso8601String().split('T')[0],
+      'log_date': dateStr,
     };
     final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/steps/sync'),
@@ -96,9 +108,11 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
-  Future<Map<String, dynamic>> getTodaySteps() async {
+  Future<Map<String, dynamic>> getTodaySteps({DateTime? date}) async {
+    final effectiveDate = date ?? DateTime.now();
+    final dateStr = effectiveDate.toIso8601String().split('T')[0];
     final res = await _req((h) => http.get(
-      Uri.parse('$kBaseUrl/steps/today'),
+      Uri.parse('$kBaseUrl/steps/today?log_date=$dateStr'),
       headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch today steps');
@@ -123,9 +137,9 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
-  Future<Map<String, dynamic>> getLeaderboard() async {
+  Future<Map<String, dynamic>> getLeaderboard({String period = 'weekly', int offset = 0}) async {
     final res = await _req((h) => http.get(
-      Uri.parse('$kBaseUrl/steps/leaderboard'),
+      Uri.parse('$kBaseUrl/steps/leaderboard?period=$period&offset=$offset'),
       headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch leaderboard');

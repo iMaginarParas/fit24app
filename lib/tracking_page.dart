@@ -195,8 +195,11 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
                       border: Border.all(color: Colors.white.withOpacity(0.15)),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Text('1 meter = 1 Fit24 Point ', style: TextStyle(
-                          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(tracking.type == ActivityType.walking 
+                        ? '1 step = 1 Fit24 Point' 
+                        : '1 meter = 1 Fit24 Point', 
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 6),
                       Icon(Icons.info_outline_rounded, size: 14, color: Colors.white.withOpacity(0.5)),
                     ]),
                   ),
@@ -205,21 +208,27 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
                 if (tracking.isTracking) _metricsOverlay(tracking),
 
                 // Bottom Navigation / Control Panel
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(0, 20, 0, 40),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 40)],
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(0, 24, 0, 44),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+                        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.5),
+                      ),
+                      child: Column(children: [
+                        // Tabs (Walk, Run, Cycle)
+                        if (!tracking.isTracking) _activityTabs(tracking, notifier),
+                        const SizedBox(height: 32),
+                        // Main GO Button & Side buttons
+                        _mainControlRow(tracking, notifier),
+                      ]),
+                    ),
                   ),
-                  child: Column(children: [
-                    // Tabs (Walk, Run, Cycle)
-                    if (!tracking.isTracking) _activityTabs(tracking, notifier),
-                    const SizedBox(height: 30),
-                    // Main GO Button & Side buttons
-                    _mainControlRow(tracking, notifier),
-                  ]),
                 ),
               ],
             ),
@@ -307,14 +316,29 @@ class _TrackingPageState extends ConsumerState<TrackingPage> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionPage()));
           }
         },
-        child: Container(
-          width: 100, height: 100,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: kTeal,
-          ),
-          child: const Center(child: Text('GO', style: TextStyle(
-              color: Colors.black, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1))),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 110, height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kTeal.withOpacity(0.2),
+              ),
+            ),
+            Container(
+              width: 90, height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kTeal,
+                boxShadow: [
+                  BoxShadow(color: kTeal.withOpacity(0.5), blurRadius: 20, spreadRadius: 2)
+                ],
+              ),
+              child: const Center(child: Text('GO', style: TextStyle(
+                  color: Colors.black, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1))),
+            ),
+          ],
         ),
       ),
       GestureDetector(

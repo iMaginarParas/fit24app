@@ -16,6 +16,8 @@ import 'profile_stats_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'shell.dart';
 import 'notifications_settings_page.dart';
+import 'help_center_page.dart';
+import 'health_connect_settings_page.dart';
 
 // API base (managed by ApiService)
 
@@ -137,13 +139,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ])),
             SliverToBoxAdapter(child: _settingsGroup('Permissions & Data', [
               _settingTile(Icons.favorite_rounded, kPink, 'Health Connect', 'Sync your fitness history', 
-                () => _manageHealthConnect(ctx)),
+                () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const HealthConnectSettingsPage()))),
               _settingTile(Icons.notifications_none_rounded, kBlue, 'Notifications', 'Manage alerts', 
                 () => _manageNotifications(ctx)),
             ])),
             SliverToBoxAdapter(child: _settingsGroup('Support & Feedback', [
               _settingTile(Icons.help_outline_rounded, Colors.white38, 'Help Center', '', 
-                () => _showPlaceholder(ctx, 'Help Center')),
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpCenterPage()))),
               _settingTile(Icons.star_border_rounded, kAmber, 'Rate Fit24', 'Version 1.0.2', 
                 () => _showPlaceholder(ctx, 'App Store Rating')),
               _settingTile(Icons.logout_rounded, kCoral, 'Sign Out', '', () => _signOut(ctx)),
@@ -232,61 +234,72 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  Widget _achievementsSection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(26, 10, 24, 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('ACHIEVEMENTS', style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.3), letterSpacing: 1.5)),
-            const Text('4 / 12', style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w800, color: kTeal)),
-          ],
-        ),
-      ),
-      SizedBox(
-        height: 110,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          children: [
-            _badgeCard('Early Bird', Icons.wb_sunny_rounded, kAmber, true),
-            _badgeCard('Century Club', Icons.emoji_events_rounded, kGreen, true),
-            _badgeCard('Marathoner', Icons.directions_run_rounded, kBlue, true),
-            _badgeCard('Streak Master', Icons.bolt_rounded, kCoral, true),
-            _badgeCard('Global Ranker', Icons.public_rounded, kPurple, false),
-            _badgeCard('Iron Cyclist', Icons.directions_bike_rounded, kTeal, false),
-          ],
-        ),
-      ),
-    ],
-  );
+  Widget _achievementsSection() {
+    final stats = ref.watch(profileStatsProvider);
+    final badges = <Widget>[];
 
-  Widget _badgeCard(String name, IconData icon, Color color, bool earned) => Container(
+    if (stats.totalSteps >= 1) {
+      badges.add(_badgeCard('First Step', Icons.directions_walk_rounded, kGreen));
+    }
+    if (stats.totalSteps >= 10000) {
+      badges.add(_badgeCard('Novice', Icons.trending_up_rounded, kTeal));
+    }
+    if (stats.totalSteps >= 100000) {
+      badges.add(_badgeCard('Elite', Icons.emoji_events_rounded, kAmber));
+    }
+    if (stats.totalPoints >= 50000) {
+      badges.add(_badgeCard('Wealthy', Icons.bolt_rounded, kPurple));
+    }
+    if (stats.totalSessions >= 5) {
+      badges.add(_badgeCard('Athlete', Icons.directions_run_rounded, kBlue));
+    }
+
+    if (badges.isEmpty) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(26, 10, 24, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('MILESTONES', style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.3), letterSpacing: 1.5)),
+              Text('${badges.length} Unlocked', style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w800, color: kTeal)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 110,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            children: badges,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _badgeCard(String name, IconData icon, Color color) => Container(
     width: 90,
     margin: const EdgeInsets.only(right: 12),
     child: Column(children: [
       Container(
         width: 64, height: 64,
         decoration: BoxDecoration(
-          color: earned ? color.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+          color: color.withOpacity(0.15),
           shape: BoxShape.circle,
-          border: Border.all(
-            color: earned ? color.withOpacity(0.4) : Colors.white.withOpacity(0.1),
-            width: 2,
-          ),
-          boxShadow: earned ? [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15)] : null,
+          border: Border.all(color: color.withOpacity(0.4), width: 2),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 15)],
         ),
-        child: Icon(icon, color: earned ? color : Colors.white.withOpacity(0.15), size: 28),
+        child: Icon(icon, color: color, size: 28),
       ),
       const SizedBox(height: 8),
       Text(name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w700, 
-          color: earned ? Colors.white : Colors.white.withOpacity(0.2))),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
     ]),
   );
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'api_service.dart';
 import 'shell.dart';
+import 'dart:ui' as ui;
 
 class LeaderboardPage extends ConsumerStatefulWidget {
   const LeaderboardPage({super.key});
@@ -16,6 +17,8 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
   bool _loading = true;
   List<dynamic> _entries = [];
   String _weekStart = '';
+  String _period = 'weekly'; // 'daily' or 'weekly'
+  int _offset = 0; // 0 for current, 1 for previous
   late ScrollController _sc;
 
   @override
@@ -35,7 +38,7 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
     setState(() => _loading = true);
     try {
       final api = ref.read(apiServiceProvider);
-      final data = await api.getLeaderboard();
+      final data = await api.getLeaderboard(period: _period, offset: _offset);
       if (mounted) {
         setState(() {
           _entries = data['entries'] ?? [];
@@ -48,20 +51,42 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
     }
   }
 
+  void _updateFilter({String? period, int? offset}) {
+    setState(() {
+      if (period != null) _period = period;
+      if (offset != null) _offset = offset;
+    });
+    _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       body: Stack(
         children: [
+          // ── Premium Mesh Background ──────────────────────────────────────
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/leaderboard_bg.png',
-              fit: BoxFit.cover,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [kBg, Color(0xFF15191C)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
             ),
           ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.7)),
+          Positioned(
+            top: -50, left: -50,
+            child: Container(
+              width: 250, height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kTeal.withOpacity(0.08),
+                boxShadow: [BoxShadow(color: kTeal.withOpacity(0.1), blurRadius: 100, spreadRadius: 50)],
+              ),
+            ),
           ),
           LayoutBuilder(builder: (context, constraints) {
             return RefreshIndicator(
@@ -104,27 +129,62 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
   }
 
   Widget _header() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-    child: Row(children: [
-      GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(
-            color: kCard, borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: kBorder),
+    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.05),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              side: BorderSide(color: Colors.white.withOpacity(0.1)),
+            ),
           ),
-          child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+          const SizedBox(width: 20),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Hall of Fame', style: TextStyle(
+                fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
+            Text(_period == 'weekly' ? 'WEEKLY CHAMPIONS' : 'DAILY LEADERS', style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w800, color: kTeal, letterSpacing: 2)),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            _filterChip(_period == 'weekly' ? 'Weekly' : 'Daily', Icons.calendar_today_rounded, () {
+              _updateFilter(period: _period == 'weekly' ? 'daily' : 'weekly');
+            }, true),
+            const SizedBox(width: 10),
+            _filterChip(_offset == 0 ? 'Current' : 'Previous', Icons.history_rounded, () {
+              _updateFilter(offset: _offset == 0 ? 1 : 0);
+            }, _offset != 0),
+          ],
         ),
+      ],
+    ),
+  );
+
+  Widget _filterChip(String label, IconData icon, VoidCallback onTap, bool active) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: active ? kGreen.withOpacity(0.1) : kCard,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: active ? kGreen.withOpacity(0.4) : kBorder),
       ),
-      const SizedBox(width: 16),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Leaderboard', style: TextStyle(
-            fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-        Text('Week of $_weekStart', style: TextStyle(
-            fontSize: 12, color: Colors.white.withOpacity(0.4))),
-      ]),
-    ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: active ? kGreen : Colors.white38),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: active ? kGreen : Colors.white60)),
+        ],
+      ),
+    ),
   );
 
   Widget _topThree() {
@@ -149,24 +209,51 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
     final steps = (e['steps'] as num).toInt();
     final uid = e['user_id'] as String;
     final initials = uid.substring(0, 2).toUpperCase();
+    final isFirst = rank == 1;
     
     return Column(children: [
       Stack(alignment: Alignment.center, children: [
-        AvatarCircle(initials, color, size: rank == 1 ? 70 : 60),
+        // Glow Effect
+        Container(
+          width: isFirst ? 90 : 75, height: isFirst ? 90 : 75,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 25, spreadRadius: 2)],
+          ),
+        ),
+        AvatarCircle(initials, color, size: isFirst ? 80 : 65),
         Positioned(bottom: 0, child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-          child: Text('#$rank', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color, 
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 10)],
+          ),
+          child: Text('#$rank', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black)),
         )),
       ]),
-      const SizedBox(height: 12),
-      Text(NumberFormat.compact().format(steps), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
-      const Text('Steps', style: TextStyle(fontSize: 10, color: Colors.white38)),
-      const SizedBox(height: 10),
-      Container(width: 60, height: h - 100, decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [color.withOpacity(0.3), color.withOpacity(0.05)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      const SizedBox(height: 16),
+      Text(NumberFormat.compact().format(steps), style: TextStyle(
+        fontSize: isFirst ? 20 : 16, 
+        fontWeight: FontWeight.w900, 
+        color: Colors.white,
+        shadows: [Shadow(color: color.withOpacity(0.5), blurRadius: 10)],
       )),
+      const Text('Steps', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white38, letterSpacing: 1)),
+      const SizedBox(height: 12),
+      // 3D Podium Block
+      Container(
+        width: 65, height: h - 100, 
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.4), color.withOpacity(0.02)], 
+            begin: Alignment.topCenter, 
+            end: Alignment.bottomCenter
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+        ),
+      ),
     ]);
   }
 
@@ -180,28 +267,38 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
 
     return GestureDetector(
       onTap: () => _showUserStats(uid),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isMe ? kGreen.withOpacity(0.1) : kCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isMe ? kGreen.withOpacity(0.3) : kBorder),
-        ),
-        child: Row(children: [
-          SizedBox(width: 30, child: Text('$rank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white.withOpacity(0.3)))),
-          AvatarCircle(initials, kGreen, size: 40),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(isMe ? 'You' : 'User ${uid.substring(0, 4)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-            Text('${NumberFormat('#,###').format(steps)} steps', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4))),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.circular(100)),
-            child: Text('+${e['fit_points']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kGreen)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isMe ? kGreen.withOpacity(0.08) : Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: isMe ? kGreen.withOpacity(0.4) : Colors.white.withOpacity(0.08), width: 1.5),
+            ),
+            child: Row(children: [
+              SizedBox(width: 32, child: Text('$rank', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isMe ? kGreen : Colors.white.withOpacity(0.2)))),
+              AvatarCircle(initials, isMe ? kGreen : kTeal, size: 44),
+              const SizedBox(width: 16),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(isMe ? 'You' : 'Elite Athlete', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('${NumberFormat('#,###').format(steps)} steps', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w500)),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isMe ? kGreen : Colors.white.withOpacity(0.05), 
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: isMe ? [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 10)] : null,
+                ),
+                child: Text('+${e['fit_points']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isMe ? Colors.black : kGreen)),
+              ),
+            ]),
           ),
-        ]),
+        ),
       ),
     );
   }

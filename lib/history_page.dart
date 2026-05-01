@@ -6,7 +6,9 @@ import 'dart:convert';
 import 'api_service.dart';
 import 'tracking_service.dart';
 import 'session_detail_page.dart';
+import 'session_detail_page.dart';
 import 'shell.dart';
+import 'dart:ui' as ui;
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -64,38 +66,58 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       backgroundColor: kBg,
       body: Stack(
         children: [
-          // ── Background Image (Matches Activity/Home) ───────────────────────
+          // ── Premium Dark Background ──────────────────────────────────────
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/activity_bg.png',
-              fit: BoxFit.cover,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [kBg, Color(0xFF1A1F25)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
             ),
           ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.7)),
+          Positioned(
+            top: -100, right: -100,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kTeal.withOpacity(0.05),
+                boxShadow: [BoxShadow(color: kTeal.withOpacity(0.1), blurRadius: 100, spreadRadius: 50)],
+              ),
+            ),
           ),
           
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // ── Header (Clean, No notification icon) ───────────────────────
+              // ── Modern Glass Header ───────────────────────────────────────
               SliverAppBar(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
+                pinned: true,
+                expandedHeight: 80,
+                flexibleSpace: ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(color: kBg.withOpacity(0.5)),
+                  ),
+                ),
                 leading: IconButton(
-                  icon: const Icon(Icons.chevron_left_rounded, color: Colors.white, size: 32),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
                   onPressed: () => Navigator.pop(context),
                 ),
                 title: const Text('Activity History', 
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
                 centerTitle: true,
-                floating: true,
               ),
 
               // ── Filter Chips ──────────────────────────────────────────────
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -116,13 +138,23 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: kTeal)))
               else if (filtered.isEmpty)
                 SliverFillRemaining(
+                  hasScrollBody: false,
                   child: Center(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.history_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
-                        const SizedBox(height: 16),
-                        Text('No activities found', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 15)),
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.03),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.history_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('No activities recorded', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        Text('Start your first session to see it here!', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)),
                       ],
                     ),
                   ),
@@ -135,7 +167,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   ),
                 ),
               
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
         ],
@@ -147,18 +179,19 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     final sel = _filter == type;
     return GestureDetector(
       onTap: () => setState(() => _filter = type),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          color: sel ? kTeal : kSurface.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: sel ? kTeal : kBorder),
-          boxShadow: sel ? [BoxShadow(color: kTeal.withOpacity(0.3), blurRadius: 10)] : null,
+          color: sel ? kTeal : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: sel ? kTeal : Colors.white.withOpacity(0.1), width: 1.5),
+          boxShadow: sel ? [BoxShadow(color: kTeal.withOpacity(0.3), blurRadius: 15, spreadRadius: -2)] : null,
         ),
         child: Text(label, style: TextStyle(
-          color: sel ? Colors.black : Colors.white.withOpacity(0.5),
-          fontSize: 13, fontWeight: sel ? FontWeight.w800 : FontWeight.w600
+          color: sel ? Colors.black : Colors.white.withOpacity(0.6),
+          fontSize: 14, fontWeight: sel ? FontWeight.w900 : FontWeight.w600
         )),
       ),
     );
@@ -180,14 +213,18 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionDetailPage(session: s))),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: kCard.withOpacity(0.6),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: kBorder.withOpacity(0.5)),
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
+            ),
         child: Row(
           children: [
             Container(
@@ -230,8 +267,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           ],
         ),
       ),
-    );
-  }
+    ),
+   ),
+  );
+ }
 
   Widget _smallMetric(IconData icon, String val, Color color) => Row(
     children: [

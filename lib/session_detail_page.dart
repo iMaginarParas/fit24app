@@ -85,32 +85,42 @@ class SessionDetailPage extends StatelessWidget {
           // ── Bottom Summary ─────────────────────────────────────────────────
           Positioned(
             bottom: 30, left: 20, right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 40)],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: kGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                      child: Text(DateFormat('MMMM d, h:mm a').format(date), 
-                        style: const TextStyle(color: kGreen, fontSize: 12, fontWeight: FontWeight.w700)),
-                    ),
-                  ]),
-                  const SizedBox(height: 20),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                    _metric('Distance', dist < 1000 ? '${dist.toStringAsFixed(0)}m' : '${(dist/1000).toStringAsFixed(2)}km'),
-                    _metric('Duration', _formatDur(dur)),
-                    _metric('Calories', '$cal'),
-                  ]),
-                ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.5),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 40)],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: kGreen.withOpacity(0.15), 
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: kGreen.withOpacity(0.3)),
+                          ),
+                          child: Text(DateFormat('MMMM d, h:mm a').format(date).toUpperCase(), 
+                            style: const TextStyle(color: kGreen, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                        ),
+                      ]),
+                      const SizedBox(height: 24),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                        _metric('DISTANCE', dist < 1000 ? '${dist.toStringAsFixed(0)}m' : '${(dist/1000).toStringAsFixed(2)}km'),
+                        _metric('DURATION', _formatDur(dur)),
+                        _metric('CALORIES', '$cal'),
+                      ]),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
