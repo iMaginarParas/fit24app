@@ -135,7 +135,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           try {
             final method = MethodChannel('com.fit24app/steps');
             final localSteps = await method.invokeMethod<int>('getTodaySteps') ?? 0;
-            final currentSteps = _history.isNotEmpty ? (_history.first['steps'] as int? ?? 0) : 0;
+            final currentSteps = _history.isNotEmpty ? ((_history.first['steps'] as num?)?.toInt() ?? 0) : 0;
             if (localSteps > currentSteps) {
               await ref.read(apiServiceProvider).syncSteps(localSteps);
             }
@@ -235,7 +235,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     double walkDist = 0, walkDur = 0, runDist = 0, runDur = 0, cycleDist = 0, cycleDur = 0;
 
     for (var s in _sessions) {
-      final type = ActivityType.values[s['type'] as int];
+      final type = ActivityType.values[(s['type'] as num).toInt()];
       final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
       final dur = (s['duration'] as num?)?.toInt() ?? 0;
       if (type == ActivityType.walking) { walkDist += dist; walkDur += dur; }
@@ -277,7 +277,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   Widget _sessionsList() {
     final filtered = _selectedType == null 
         ? _sessions 
-        : _sessions.where((s) => ActivityType.values[s['type'] as int] == _selectedType).toList();
+        : _sessions.where((s) => ActivityType.values[(s['type'] as num).toInt()] == _selectedType).toList();
     if (filtered.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -292,7 +292,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
         itemCount: filtered.length,
         itemBuilder: (context, i) {
           final s = filtered[i];
-          final type = ActivityType.values[s['type'] as int];
+          final type = ActivityType.values[(s['type'] as num).toInt()];
           final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
           final date = DateTime.parse(s['date']);
           

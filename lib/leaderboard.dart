@@ -146,7 +146,7 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
   }
 
   Widget _podiumItem(dynamic e, int rank, double h, Color color) {
-    final steps = e['steps'] as int;
+    final steps = (e['steps'] as num).toInt();
     final uid = e['user_id'] as String;
     final initials = uid.substring(0, 2).toUpperCase();
     
@@ -173,7 +173,7 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
   Widget _listEntry(int i) {
     final e = _entries[i];
     final rank = i + 1;
-    final steps = e['steps'] as int;
+    final steps = (e['steps'] as num).toInt();
     final uid = e['user_id'] as String;
     final initials = uid.substring(0, 2).toUpperCase();
     final isMe = uid == ref.read(userIdProvider);

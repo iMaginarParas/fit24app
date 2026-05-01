@@ -10,10 +10,14 @@ class SessionDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<dynamic> routeData = session['route'] ?? [];
-    final List<LatLng> route = routeData.map((p) => LatLng(p['lat'], p['lng'])).toList();
-    final dist = session['distance'] as double;
-    final dur = session['duration'] as int;
-    final cal = session['calories'] as int;
+    final List<LatLng> route = routeData.map((p) => LatLng(
+      (p['lat'] as num).toDouble(), 
+      (p['lng'] as num).toDouble()
+    )).toList();
+    
+    final dist = (session['distance'] as num?)?.toDouble() ?? 0.0;
+    final dur = (session['duration'] as num?)?.toInt() ?? 0;
+    final cal = (session['calories'] as num?)?.toInt() ?? 0;
     final date = DateTime.parse(session['date']);
 
     return Scaffold(

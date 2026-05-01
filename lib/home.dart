@@ -151,7 +151,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     try {
       final api = ref.read(apiServiceProvider);
       final todayData = await api.getTodaySteps();
-      final backendSteps = todayData['steps'] as int? ?? 0;
+      final backendSteps = (todayData['steps'] as num?)?.toInt() ?? 0;
       
       final localSteps = await _method.invokeMethod<int>('getTodaySteps') ?? 0;
       
@@ -182,7 +182,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       if (days != null && mounted) {
         final Map<String, int> data = {};
         for (var d in days) {
-          data[d['log_date']] = d['steps'] as int;
+          data[d['log_date']] = (d['steps'] as num).toInt();
         }
         setState(() => _hist = data);
         return;
