@@ -10,19 +10,21 @@ class ApiService {
   final Ref ref;
   ApiService(this.token, this.ref);
 
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer $token',
-  };
+  Map<String, String> get _headers {
+    final t = ref.read(accessTokenProvider);
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $t',
+    };
+  }
 
   // Wrapper for all authenticated requests to handle token expiration (401)
-  Future<http.Response> _req(Future<http.Response> Function() call) async {
-    final res = await call();
+  Future<http.Response> _req(Future<http.Response> Function(Map<String, String> headers) call) async {
+    var res = await call(_headers);
     if (res.statusCode == 401) {
       final auth = ref.read(authProvider).valueOrNull;
       if (auth != null && auth.refreshToken.isNotEmpty) {
         try {
-          // Attempt refresh
           final refreshRes = await http.post(
             Uri.parse('$kBaseUrl/auth/refresh-token?refresh_token=${auth.refreshToken}'),
           );
@@ -34,12 +36,11 @@ class ApiService {
               userId: auth.userId,
               phone: auth.phone,
             );
-            // Retry the original request with new token
-            return await call();
+            // Retry with NEW headers (which will now have the new token)
+            return await call(_headers);
           }
         } catch (_) {}
       }
-      // If refresh fails, log out
       ref.read(authProvider.notifier).signOut();
     }
     return res;
@@ -86,9 +87,9 @@ class ApiService {
       'steps': steps,
       if (date != null) 'log_date': date.toIso8601String().split('T')[0],
     };
-    final res = await _req(() => http.post(
+    final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/steps/sync'),
-      headers: _headers,
+      headers: h,
       body: jsonEncode(body),
     ));
     if (res.statusCode != 200) throw Exception('Failed to sync steps: ${res.body}');
@@ -96,54 +97,54 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getTodaySteps() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/steps/today'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch today steps');
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> getStepHistory({int days = 7}) async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/steps/history?days=$days'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch history');
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> getStats() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/steps/stats'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch stats');
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> getLeaderboard() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/steps/leaderboard'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch leaderboard');
     return jsonDecode(res.body);
   }
 
   Future<List<dynamic>> getSessions() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/steps/sessions'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch sessions');
     return jsonDecode(res.body);
   }
 
   Future<void> saveSession(Map<String, dynamic> session) async {
-    final res = await _req(() => http.post(
+    final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/steps/sessions'),
-      headers: _headers,
+      headers: h,
       body: jsonEncode(session),
     ));
     if (res.statusCode != 201 && res.statusCode != 200) {
@@ -154,18 +155,18 @@ class ApiService {
   // ── Profile ────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getProfile() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/profile/me'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch profile');
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> setupProfile(Map<String, dynamic> data) async {
-    final res = await _req(() => http.post(
+    final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/profile/setup'),
-      headers: _headers,
+      headers: h,
       body: jsonEncode(data),
     ));
     if (res.statusCode != 200 && res.statusCode != 201) {
@@ -175,9 +176,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
-    final res = await _req(() => http.patch(
+    final res = await _req((h) => http.patch(
       Uri.parse('$kBaseUrl/profile/me'),
-      headers: _headers,
+      headers: h,
       body: jsonEncode(data),
     ));
     if (res.statusCode != 200) throw Exception('Failed to update profile');
@@ -197,9 +198,9 @@ class ApiService {
   }
 
   Future<void> deleteAccount() async {
-    final res = await _req(() => http.delete(
+    final res = await _req((h) => http.delete(
       Uri.parse('$kBaseUrl/profile/me'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 204 && res.statusCode != 200) {
       throw Exception('Failed to delete account');
@@ -209,18 +210,18 @@ class ApiService {
   // ── Content ────────────────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCategories() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/admin/categories'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch categories');
     return jsonDecode(res.body);
   }
 
   Future<List<dynamic>> getTutorials() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/admin/tutorials'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch tutorials');
     return jsonDecode(res.body);
@@ -229,9 +230,9 @@ class ApiService {
   // ── Config ─────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getKeys() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/config/keys'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('Failed to fetch keys');
     return jsonDecode(res.body);
@@ -240,18 +241,18 @@ class ApiService {
   // ── Challenges ─────────────────────────────────────────────────────────────
   
   Future<List<dynamic>> getChallenges() async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/challenges/'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) return [];
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> claimChallenge(String id) async {
-    final res = await _req(() => http.post(
+    final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/challenges/claim/$id'),
-      headers: _headers,
+      headers: h,
     ));
     return jsonDecode(res.body);
   }
@@ -259,9 +260,9 @@ class ApiService {
   // ── Social ─────────────────────────────────────────────────────────────────
   
   Future<void> followUser(String id) async {
-    final res = await _req(() => http.post(
+    final res = await _req((h) => http.post(
       Uri.parse('$kBaseUrl/profile/follow/$id'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200 && res.statusCode != 201) {
       throw Exception('Failed to follow');
@@ -269,9 +270,9 @@ class ApiService {
   }
 
   Future<void> unfollowUser(String id) async {
-    final res = await _req(() => http.delete(
+    final res = await _req((h) => http.delete(
       Uri.parse('$kBaseUrl/profile/follow/$id'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200 && res.statusCode != 204) {
       throw Exception('Failed to unfollow');
@@ -279,9 +280,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getPublicProfile(String id) async {
-    final res = await _req(() => http.get(
+    final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/profile/public/$id'),
-      headers: _headers,
+      headers: h,
     ));
     if (res.statusCode != 200) throw Exception('User not found');
     return jsonDecode(res.body);

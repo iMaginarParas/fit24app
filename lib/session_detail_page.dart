@@ -25,7 +25,7 @@ class SessionDetailPage extends StatelessWidget {
             child: GoogleMap(
               initialCameraPosition: CameraPosition(
                 target: route.isNotEmpty ? route.first : const LatLng(0, 0),
-                zoom: 16,
+                zoom: 15,
               ),
               myLocationEnabled: false,
               zoomControlsEnabled: false,
@@ -34,9 +34,33 @@ class SessionDetailPage extends StatelessWidget {
                 Polyline(
                   polylineId: const PolylineId('route'),
                   points: route,
-                  color: kTeal,
-                  width: 6,
+                  color: kGreen,
+                  width: 5,
+                  jointType: JointType.round,
+                  startCap: Cap.roundCap,
+                  endCap: Cap.roundCap,
                 ),
+              },
+              markers: route.isEmpty ? {} : {
+                Marker(
+                  markerId: const MarkerId('start'),
+                  position: route.first,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                ),
+                Marker(
+                  markerId: const MarkerId('end'),
+                  position: route.last,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                ),
+              },
+              onMapCreated: (controller) {
+                if (route.isNotEmpty) {
+                  // Wait a bit for the map to stabilize then fit bounds
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    final bounds = _getBounds(route);
+                    controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+                  });
+                }
               },
             ),
           ),
@@ -88,6 +112,20 @@ class SessionDetailPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  LatLngBounds _getBounds(List<LatLng> points) {
+    double? minLat, maxLat, minLng, maxLng;
+    for (final p in points) {
+      if (minLat == null || p.latitude < minLat) minLat = p.latitude;
+      if (maxLat == null || p.latitude > maxLat) maxLat = p.latitude;
+      if (minLng == null || p.longitude < minLng) minLng = p.longitude;
+      if (maxLng == null || p.longitude > maxLng) maxLng = p.longitude;
+    }
+    return LatLngBounds(
+      southwest: LatLng(minLat!, minLng!),
+      northeast: LatLng(maxLat!, maxLng!),
     );
   }
 
