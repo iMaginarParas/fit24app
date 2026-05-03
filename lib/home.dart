@@ -370,7 +370,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
 
         // Goal Notification Logic
         final profile = ref.read(profileDataProvider).valueOrNull;
-        final goal = profile?['daily_goal'] ?? 8000;
+        final goal = profile?['daily_goal'] ?? kGoal;
         if (nVal >= goal && pVal < goal && pVal > 0) {
           NotificationService().showNotification(
             id: 200,
@@ -381,16 +381,17 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       }
     });
 
-    final pct = (_disp / kGoal).clamp(0.0, 1.0);
+    final profileAsync = ref.watch(profileDataProvider);
+    final p = profileAsync.valueOrNull ?? {};
+    final name = p['name'] as String? ?? 'User';
+    final userGoal = p['daily_goal'] as int? ?? kGoal;
+
+    final pct = (_disp / userGoal).clamp(0.0, 1.0);
     final pts = ref.watch(userPointsProvider);
     final displayPts = (pts + math.max(0, _today - _lastSynced)).toInt();
     final lv = levelFor(_today);
     final week = _buildWeek();
     final best = week.map((d) => d.steps).fold(0, math.max);
-
-    final profileAsync = ref.watch(profileDataProvider);
-    final p = profileAsync.valueOrNull ?? {};
-    final name = p['name'] as String? ?? 'User';
 
     // Calculate Week Totals
     final weekTotalSteps = week.fold(0, (sum, d) => sum + d.steps);
@@ -399,7 +400,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
     final weekTotalMin = week.fold(0.0, (sum, d) => sum + (d.steps / 100));
 
     final displaySteps = _homePeriod == 0 ? _disp : weekTotalSteps;
-    final displayGoal = _homePeriod == 0 ? kGoal : kGoal * 7;
+    final displayGoal = _homePeriod == 0 ? userGoal : userGoal * 7;
     final displayPct = (displaySteps / displayGoal).clamp(0.0, 1.0);
     
     final displayDist = _homePeriod == 0 ? (_disp * 0.00075) : weekTotalDist;
