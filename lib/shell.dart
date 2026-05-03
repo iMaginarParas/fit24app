@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:health/health.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home.dart';
 import 'earn.dart';
 import 'activity.dart';
@@ -41,6 +44,52 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _i = 0;
   static const _pages = [HomePage(), EarnPage(), ActivityPage(), ProfilePage()];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _requestPermissionsOnce());
+  }
+
+  /// Requests ALL app permissions exactly once after login, in the
+  /// correct Android-required order.
+  Future<void> _requestPermissionsOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyAsked = prefs.getBool('permissions_requested') ?? false;
+    if (alreadyAsked) return;
+
+    // ── Step 1: Activity Recognition + Notifications + Fine Location ─────────
+    // These can all be requested together in one batch.
+    final results = await [
+      Permission.activityRecognition,
+      Permission.notification,
+      Permission.location,
+    ].request();
+
+    // ── Step 2: Background Location ───────────────────────────────────────────
+    // Android 11+ REQUIRES background location to be requested SEPARATELY
+    // and only AFTER fine location is granted. Requesting it in the same
+    // batch as fine location silently fails on Android 11+.
+    final locationGranted =
+        results[Permission.location] == PermissionStatus.granted;
+    if (locationGranted) {
+      await Permission.locationAlways.request();
+    }
+
+    // ── Step 3: Health Connect ────────────────────────────────────────────────
+    // The `health` package opens the Health Connect consent screen.
+    try {
+      final health = Health();
+      await health.configure();
+      await health.requestAuthorization([
+        HealthDataType.STEPS,
+        HealthDataType.DISTANCE_DELTA,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+      ]);
+    } catch (_) {}
+
+    await prefs.setBool('permissions_requested', true);
+  }
 
   @override
   Widget build(BuildContext context) {

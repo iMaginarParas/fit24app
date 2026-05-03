@@ -606,7 +606,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
                     ),
                     const SizedBox(width: 8),
-                    Text('Avg: ${isKm ? avg.toStringAsFixed(1) : avg.round()} ${isKm ? "km" : "steps"}/day',
+                    Text('Avg: ${isKm ? avg.toStringAsFixed(1) : avg.round()} ${isKm ? "km" : unit.toLowerCase()}/day',
                       style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5))),
                   ]),
                 ]),
