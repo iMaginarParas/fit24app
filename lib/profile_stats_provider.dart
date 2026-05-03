@@ -20,6 +20,7 @@ class ProfileStats {
 
 // 1. Fetches baseline data from backend
 final baseProfileStatsProvider = FutureProvider.autoDispose<ProfileStats>((ref) async {
+  try {
     final api = ref.watch(apiServiceProvider);
     final history = await api.getStepHistory(days: 30);
     final remoteSessions = await api.getSessions();
@@ -50,6 +51,8 @@ final baseProfileStatsProvider = FutureProvider.autoDispose<ProfileStats>((ref) 
         extraPoints += (s['fit_points'] as num?)?.toInt() ?? 0;
       }
     }
+
+    final syncedToday = (todayData['steps'] as num?)?.toInt() ?? 0;
 
     return ProfileStats(
       totalSteps: (history['total_steps'] ?? 0) + extraSteps,

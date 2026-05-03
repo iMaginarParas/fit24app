@@ -18,6 +18,7 @@ import 'points_provider.dart';
 import 'shell.dart';
 import 'tracking_page.dart';
 import 'notification_service.dart';
+import 'step_provider.dart';
 import 'activity.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
@@ -359,16 +360,18 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
   bool _refreshing = false;
 
   Widget _dashboard() {
-    // Sync UI with global todayStepsProvider
-    ref.listen<int>(todayStepsProvider, (prev, next) {
+    // Sync UI with global liveStepProvider
+    ref.listen<AsyncValue<int>>(liveStepProvider, (prev, next) {
+      final pVal = prev?.valueOrNull ?? 0;
+      final nVal = next.valueOrNull ?? 0;
       if (mounted) {
-        setState(() => _today = next);
-        _animTo(next);
+        setState(() => _today = nVal);
+        _animTo(nVal);
 
         // Goal Notification Logic
         final profile = ref.read(profileDataProvider).valueOrNull;
         final goal = profile?['daily_goal'] ?? 8000;
-        if (next >= goal && (prev ?? 0) < goal && (prev ?? 0) > 0) {
+        if (nVal >= goal && pVal < goal && pVal > 0) {
           NotificationService().showNotification(
             id: 200,
             title: 'Goal Achieved! 🏆',
@@ -1178,5 +1181,60 @@ class _PremiumOrbPainter extends CustomPainter {
   @override
   bool shouldRepaint(_PremiumOrbPainter o) => 
       o.progress != progress || o.pulse != pulse;
+}
+
+class _LiquidOrbPainter extends CustomPainter {
+  final double progress;
+  final double pulse;
+  final double spin;
+
+  _LiquidOrbPainter(this.progress, this.pulse, this.spin);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // 1. Background Orb (Dark Glass)
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xFF111418));
+    
+    // 2. Liquid Wave
+    final fillLevel = progress.clamp(0.0, 1.0);
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF00E5FF), Color(0xFF00BFA5)],
+      ).createShader(rect);
+
+    final path = Path();
+    final waveHeight = 8.0 * pulse;
+    final yBase = size.height * (1 - fillLevel);
+    
+    path.moveTo(0, size.height);
+    for (double x = 0; x <= size.width; x++) {
+      final y = yBase + math.sin((x / size.width * 2 * math.pi) + (spin * 2 * math.pi)) * waveHeight;
+      path.lineTo(x, y);
+    }
+    path.lineTo(size.width, size.height);
+    path.close();
+
+    canvas.save();
+    canvas.clipPath(Path()..addOval(rect));
+    canvas.drawPath(path, paint);
+    canvas.restore();
+
+    // 3. Inner Glow
+    canvas.drawCircle(
+      center, radius - 4,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white.withOpacity(0.1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_LiquidOrbPainter oldDelegate) => true;
 }
 

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1047128597921",
+    "project_id": "fit24-app",
+    "storage_bucket": ""
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1047128597921:android:fit24app",
+        "android_client_info": {
+          "package_name": "com.example.fit24app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1047128597921-739i73i3lh3a2usjtnqc8b09ufm8uida.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fit24app",
+            "certificate_hash": "03a08b4bffcf81e8e37d2cc52128088dc65a3c8eb"
+          }
+        },
+        {
+          "client_id": "1047128597921-3rgdprug33ohokd3g8t478gi1ndpnaf1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": ""
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1047128597921-3rgdprug33ohokd3g8t478gi1ndpnaf1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

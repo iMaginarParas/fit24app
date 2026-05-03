@@ -215,21 +215,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           Text(city, style: TextStyle(
               fontSize: 13, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w500)),
         ]),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: kTeal.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: kTeal.withOpacity(0.2)),
-          ),
-          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.verified_rounded, size: 14, color: kTeal),
-            SizedBox(width: 6),
-            Text('FIT24 PRO', style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w900, color: kTeal, letterSpacing: 1)),
-          ]),
-        ),
       ]),
     );
   }

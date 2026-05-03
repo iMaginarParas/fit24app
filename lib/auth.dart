@@ -403,7 +403,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     setState(() { _loading = true; _error = null; });
     try {
       final googleSignIn = GoogleSignIn(
-        serverClientId: '257460994920-oe4o0s30oigen7irlfqpc8dciluruk0k.apps.googleusercontent.com',
+        serverClientId: '1047128597921-3rgdprug33ohokd3g8t478gi1ndpnaf1.apps.googleusercontent.com',
         scopes: ['email', 'profile'],
       );
       final account = await googleSignIn.signIn();
@@ -762,8 +762,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image.network(
-            'https://www.image2url.com/r2/default/images/1776158261618-440cb3d6-dcff-4851-9f4e-0d6ffc5851d8.png', // I'll use a better one or just icon
-            height: 20,
+            'https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png',
+            height: 22,
+            errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata_rounded,
+                size: 24, color: Colors.white),
           ),
           const SizedBox(width: 12),
           const Text(

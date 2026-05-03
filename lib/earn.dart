@@ -125,8 +125,7 @@ class _EP extends ConsumerState<EarnPage> {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const ChallengesPage()));
                     })),
                     SliverToBoxAdapter(child: _challengesList(liveSteps)),
-                    SliverToBoxAdapter(child: SectionHeader('Recent Transactions')),
-                    SliverToBoxAdapter(child: _transactionFeed()),
+
                     SliverToBoxAdapter(child: SectionHeader('Redeem Rewards', action: 'All', onAction: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
                     })),
@@ -314,10 +313,10 @@ class _EP extends ConsumerState<EarnPage> {
     );
 
   Widget _activityBreakdown(int currentSteps) {
-    // Calculate points from sessions
+    // Calculate points from today's activity sessions
     int sessionPoints = 0;
     for (var s in _todaySessions) {
-      sessionPoints += (s['steps'] as num?)?.toInt() ?? 0;
+      sessionPoints += (s['fit_points'] as num?)?.toInt() ?? 0;
     }
 
     // Calculate points from completed challenges (mocked logic based on current UI)

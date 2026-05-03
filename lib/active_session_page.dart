@@ -170,7 +170,7 @@ class _ActiveSessionPageState extends ConsumerState<ActiveSessionPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _metricGlass('CALORIES', '${tracking.calculateCalories()}', kPink),
-                      _metricGlass('PACE', '---', kCyan),
+                      _metricGlass('PACE', '---', kTeal),
                       _metricGlass('STEPS', '${tracking.steps}', kGreen),
                     ],
                   ),
