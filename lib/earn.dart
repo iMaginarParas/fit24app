@@ -9,7 +9,8 @@ import 'shell.dart';
 import 'points_provider.dart';
 import 'step_provider.dart';
 import 'activity.dart';
-
+import 'spin_wheel_page.dart';
+import 'withdraw_page.dart';
 class EarnPage extends ConsumerStatefulWidget {
   const EarnPage({super.key});
   @override
@@ -119,6 +120,7 @@ class _EP extends ConsumerState<EarnPage> {
                     SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
                     SliverToBoxAdapter(child: _balanceCard(displayPoints, liveSteps)),
                     SliverToBoxAdapter(child: _rateCards()),
+                    SliverToBoxAdapter(child: _spinWheelBanner(context)),
                     SliverToBoxAdapter(child: SectionHeader('Today\'s Activity')),
                     SliverToBoxAdapter(child: _activityBreakdown(liveSteps)),
                     SliverToBoxAdapter(child: SectionHeader('Active Challenges', action: 'See all', onAction: () {
@@ -151,22 +153,6 @@ class _EP extends ConsumerState<EarnPage> {
             fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
       ]),
       const Spacer(),
-      GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityPage())),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: kCard, borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: kBorder),
-          ),
-          child: Row(children: [
-            Icon(Icons.history_rounded, size: 16, color: Colors.white.withOpacity(0.5)),
-            const SizedBox(width: 6),
-            Text('History', style: TextStyle(
-                fontSize: 13, color: Colors.white.withOpacity(0.6), fontWeight: FontWeight.w600)),
-          ]),
-        ),
-      ),
     ]),
   );
 
@@ -247,7 +233,7 @@ class _EP extends ConsumerState<EarnPage> {
           const SizedBox(height: 18),
           Row(children: [
             Expanded(child: _actionBtn('Withdraw', Icons.arrow_upward_rounded, kGreen, onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawPage()));
             })),
           ]),
         ]),
@@ -287,6 +273,58 @@ class _EP extends ConsumerState<EarnPage> {
       const SizedBox(width: 10),
       Expanded(child: _rateTile('7-Day Streak', '+100K', kPurple, Icons.local_fire_department_rounded)),
     ]),
+  );
+
+  Widget _spinWheelBanner(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+    child: GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SpinWheelPage())),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            colors: [kTeal.withOpacity(0.3), kPurple.withOpacity(0.1)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: kTeal.withOpacity(0.4)),
+          boxShadow: [BoxShadow(color: kTeal.withOpacity(0.15), blurRadius: 20)],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50, height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kTeal.withOpacity(0.2),
+                boxShadow: [BoxShadow(color: kTeal.withOpacity(0.5), blurRadius: 10)],
+              ),
+              child: const Icon(Icons.casino_rounded, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Daily Spin & Win', style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5
+                  )),
+                  const SizedBox(height: 4),
+                  Text('Win up to 100 points every day!', style: TextStyle(
+                    fontSize: 12, color: Colors.white.withOpacity(0.7)
+                  )),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: kTeal, borderRadius: BorderRadius.circular(10)),
+              child: const Text('Play', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 
   Widget _rateTile(String label, String value, Color color, IconData icon) =>
@@ -500,7 +538,7 @@ class _EP extends ConsumerState<EarnPage> {
       children: [
         _redeemCard('assets/images/reward_coffee.png', 'Coffee', '10,000', kAmber, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
         _redeemCard('assets/images/reward_gaming.png', 'Game Credits', '25,000', kPurple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
-        _redeemCard('assets/images/reward_cash.png', 'Cash Out', '50,000', kGreen, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/reward_cash.png', 'Cash Out', '50,000', kGreen, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawPage()))),
         _redeemCard('assets/images/reward_gift.png', 'Gift Card', '40,000', kCoral, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
         _redeemCard('assets/images/reward_shoes.png', 'Shoes', '100,000', kBlue, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
       ],

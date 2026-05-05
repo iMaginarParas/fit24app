@@ -70,7 +70,16 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       if (mounted) {
         setState(() {
           // Merge and sort by date
-          final combined = [...localSessions, ...remoteSessions];
+          // Map remote sessions to have 'date' if they only have 'created_at'
+          final mappedRemote = remoteSessions.map((s) {
+            final map = Map<String, dynamic>.from(s as Map);
+            if (map['date'] == null && map['created_at'] != null) {
+              map['date'] = map['created_at'];
+            }
+            return map;
+          }).toList();
+
+          final combined = [...localSessions, ...mappedRemote];
           // Use a Map to deduplicate by date/id if possible
           final Map<String, Map<String, dynamic>> unique = {};
           for (var s in combined) {
@@ -78,7 +87,8 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
              unique[key] = s;
           }
           _sessions = unique.values.toList();
-          _sessions.sort((a, b) => DateTime.parse(b['date']).compareTo(DateTime.parse(a['date'])));
+          _sessions.sort((a, b) => DateTime.parse(b['date'] ?? DateTime.now().toIso8601String())
+            .compareTo(DateTime.parse(a['date'] ?? DateTime.now().toIso8601String())));
         });
       }
     } catch (_) {
@@ -178,12 +188,9 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                   physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                   slivers: [
                     SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-                    SliverToBoxAdapter(child: _periodTabs()),
                     SliverToBoxAdapter(child: _mainStepCard(liveSteps)),
                     SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
                     SliverToBoxAdapter(child: _modeTotals()),
-                    SliverToBoxAdapter(child: SectionHeader('Daily Breakdown')),
-                    SliverToBoxAdapter(child: _barChart(liveSteps)),
                     SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
                     SliverToBoxAdapter(child: _sessionsList()),
                     const SliverToBoxAdapter(child: SizedBox(height: 110)),
@@ -252,50 +259,75 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   );
 
    Widget _modeTotals() {
-    double walkDist = 0, walkDur = 0, runDist = 0, runDur = 0, cycleDist = 0, cycleDur = 0;
+    double dist = 0; int dur = 0; int steps = 0;
+
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     for (var s in _sessions) {
-      final type = ActivityType.values[(s['type'] as num).toInt()];
-      final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
-      final dur = (s['duration'] as num?)?.toInt() ?? 0;
-      if (type == ActivityType.walking) { walkDist += dist; walkDur += dur; }
-      else if (type == ActivityType.running) { runDist += dist; runDur += dur; }
-      else if (type == ActivityType.cycling) { cycleDist += dist; cycleDur += dur; }
+      if (s['date'].startsWith(todayStr)) {
+        final type = ActivityType.values[(s['type'] as num).toInt()];
+        if (type == _selectedType) {
+          dist += (s['distance'] as num?)?.toDouble() ?? 0.0;
+          dur += (s['duration'] as num?)?.toInt() ?? 0;
+          steps += (s['steps'] as num?)?.toInt() ?? 0;
+        }
+      }
     }
+
+    Color color = _selectedType == ActivityType.walking ? kTeal :
+                  _selectedType == ActivityType.running ? kCoral : kAmber;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(children: [
-        _modeCard('WALK', walkDist, walkDur.toInt(), Icons.directions_walk_rounded, kTeal),
+        _modeCard('DISTANCE', dist, Icons.straighten_rounded, color, isDist: true),
         const SizedBox(width: 12),
-        _modeCard('RUN', runDist, runDur.toInt(), Icons.directions_run_rounded, kCoral),
+        _modeCard('DURATION', dur.toDouble(), Icons.timer_rounded, color, isDur: true),
         const SizedBox(width: 12),
-        _modeCard('CYCLE', cycleDist, cycleDur.toInt(), Icons.directions_bike_rounded, kAmber),
+        _modeCard('STEPS', steps.toDouble(), Icons.directions_walk_rounded, color, isSteps: true),
       ]),
     );
   }
 
-  Widget _modeCard(String label, double dist, int dur, IconData icon, Color color) => Container(
-    width: 140,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: kCard, borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: color.withOpacity(0.2)),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, color: color, size: 20),
-      const SizedBox(height: 12),
-      Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
-      const SizedBox(height: 4),
-      Text(dist < 1000 ? '${dist.toStringAsFixed(0)}m' : '${(dist/1000).toStringAsFixed(1)}km', 
-        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-      Text('${(dur/60).toStringAsFixed(0)} mins', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
-    ]),
-  );
+  Widget _modeCard(String label, double val, IconData icon, Color color, {bool isDist = false, bool isDur = false, bool isSteps = false}) {
+    String valStr = '';
+    String subStr = '';
+    if (isDist) {
+      valStr = val < 1000 ? val.toStringAsFixed(0) : (val/1000).toStringAsFixed(1);
+      subStr = val < 1000 ? 'meters' : 'km';
+    } else if (isDur) {
+      valStr = (val/60).toStringAsFixed(0);
+      subStr = 'mins';
+    } else if (isSteps) {
+      valStr = val.toInt().toString();
+      subStr = 'steps';
+    }
+
+    return Container(
+      width: 140,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kCard, borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 12),
+        Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+        const SizedBox(height: 4),
+        Text(valStr, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(subStr, style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
+      ]),
+    );
+  }
 
   Widget _sessionsList() {
-    final filtered = _sessions.where((s) => ActivityType.values[(s['type'] as num).toInt()] == _selectedType).toList();
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final filtered = _sessions.where((s) => 
+      s['date'].startsWith(todayStr) && 
+      ActivityType.values[(s['type'] as num).toInt()] == _selectedType
+    ).toList();
     if (filtered.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -399,13 +431,6 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
     double filteredDist = 0;
     int filteredCal = 0;
 
-    // If Walking is selected, we include background steps (liveSteps)
-    if (_selectedType == ActivityType.walking) {
-      filteredSteps = liveSteps;
-      filteredDist = liveSteps * 0.75; // 75cm per step standard
-      filteredCal = (liveSteps * 0.05).toInt();
-    }
-
     // Add session data for the selected type
     for (var s in _sessions) {
       if (s['date'].startsWith(todayStr)) {
@@ -417,6 +442,13 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
           filteredSteps += (s['steps'] as num?)?.toInt() ?? 0;
         }
       }
+    }
+
+    // Add background steps if walking is selected
+    if (_selectedType == ActivityType.walking) {
+      filteredSteps += dailySteps;
+      filteredDist += (dailySteps * 0.75); // rough estimate
+      filteredCal += (dailySteps ~/ 20);
     }
 
     double totalDistKm = filteredDist / 1000.0;
@@ -486,195 +518,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       ]),
     ]);
 
-  Widget _barChart(int liveSteps) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 310,
-          child: PageView(
-            controller: _pc,
-            onPageChanged: (i) => setState(() => _chartIdx = i),
-            children: [
-              _metricChartSlide(
-                'Distance', 
-                liveSteps, 
-                (d) => (((d['steps'] as num?)?.toInt() ?? 0) * 0.75) / 1000.0, 
-                kBlue, 
-                'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=600',
-                'Km',
-                isKm: true
-              ),
-              _metricChartSlide(
-                'Calories', 
-                liveSteps, 
-                (d) => ((d['steps'] as num?)?.toInt() ?? 0) ~/ 20, 
-                kCoral, 
-                'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=600',
-                'Kcal'
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(2, (i) => _chartDot(i == _chartIdx)),
-        ),
-      ],
-    );
-  }
 
-  Widget _chartDot(bool active) => AnimatedContainer(
-    duration: const Duration(milliseconds: 300),
-    margin: const EdgeInsets.symmetric(horizontal: 4),
-    width: active ? 18 : 6, height: 6,
-    decoration: BoxDecoration(
-      color: active ? kGreen : Colors.white24,
-      borderRadius: BorderRadius.circular(10),
-    ),
-  );
-
-  Widget _metricChartSlide(String title, int liveSteps, dynamic Function(dynamic) valFn, Color color, String img, String unit, {bool isKm = false}) {
-    // Generate a stable 7-day window
-    final now = DateTime.now();
-    final List<Map<String, dynamic>> chartData = [];
-    double totalAll = 0;
-    
-    for (int i = 6; i >= 0; i--) {
-      final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      
-      final histEntry = _history.firstWhere(
-        (h) => h['log_date'] == dateStr, 
-        orElse: () => {'log_date': dateStr, 'steps': 0}
-      );
-      
-      double totalVal = 0;
-      double dayBestSteps = (histEntry['steps'] as num?)?.toDouble() ?? 0.0;
-      if (i == 0) dayBestSteps = math.max(dayBestSteps, liveSteps.toDouble());
-
-      for (var s in _sessions) {
-        if (s['date'].startsWith(dateStr)) {
-          final type = ActivityType.values[s['type'] as int];
-          if (type == _selectedType) {
-            final sSteps = (s['steps'] as num?)?.toDouble() ?? 0.0;
-            final sDist = (s['distance'] as num?)?.toDouble() ?? 0.0;
-            final sCal = (s['calories'] as num?)?.toDouble() ?? 0.0;
-
-            if (title == 'Steps') totalVal += sSteps;
-            else if (title == 'Calories') totalVal += sCal;
-            else if (title == 'Distance') totalVal += sDist / 1000.0;
-          }
-        }
-      }
-      
-      totalAll += totalVal;
-      chartData.add({'date': dateStr, 'val': totalVal});
-    }
-
-    final avg = totalAll / chartData.length;
-    final maxVal = chartData.map((d) => d['val'] as double).fold(0.0, (m, v) => math.max(m, v));
-    final chartMax = math.max(isKm ? 5.0 : 5000.0, maxVal * 1.2);
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: kCard, borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: kBorder),
-          image: DecorationImage(
-            image: NetworkImage(img),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.85), BlendMode.darken),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
-                      child: Text(isKm ? '${totalAll.toStringAsFixed(1)} km' : '${totalAll.round()} total',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Avg: ${isKm ? avg.toStringAsFixed(1) : avg.round()} ${isKm ? "km" : unit.toLowerCase()}/day',
-                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5))),
-                  ]),
-                ]),
-                Icon(Icons.insights_rounded, color: color, size: 22),
-              ],
-            ),
-            const SizedBox(height: 28),
-            Expanded(
-              child: Row(crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(chartData.length, (i) {
-                  final d = chartData[i];
-                  final v = d['val'] as double;
-                  final frac = v / chartMax;
-                  final h = math.max(6.0, 130 * frac);
-                  final date = DateTime.parse(d['date']);
-                  final isToday = i == chartData.length - 1;
-                  
-                  return Expanded(child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selIdx = (_selIdx == i ? null : i)),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                        if (_selIdx == i || (v > 0 && isToday))
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), borderRadius: BorderRadius.circular(4)),
-                              child: Text(isKm ? v.toStringAsFixed(1) : (v > 1000 ? '${(v/1000).toStringAsFixed(1)}k' : v.round().toString()), 
-                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isToday ? color : Colors.white)),
-                            ),
-                          )
-                        else
-                          const SizedBox(height: 17),
-                        Stack(
-                          alignment: Alignment.bottomCenter,
-                          children: [
-                            Container(height: 130, width: 12, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(100))),
-                            AnimatedContainer(
-                              duration: Duration(milliseconds: 600 + i * 50),
-                              curve: Curves.easeOutQuart,
-                              height: h.toDouble(),
-                              width: 12,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(100),
-                                gradient: LinearGradient(colors: [color.withOpacity(0.8), color], begin: Alignment.bottomCenter, end: Alignment.topCenter),
-                                boxShadow: v > 0 ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8)] : [],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(DateFormat('E').format(date).substring(0, 1), style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
-                            color: isToday ? color : Colors.white.withOpacity(0.3))),
-                      ]),
-                    ),
-                  ));
-                }),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 
   String _titleOf(ActivityType t) => t == ActivityType.walking ? 'Walking Activity' : 

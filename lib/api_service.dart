@@ -271,6 +271,15 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  Future<Map<String, dynamic>> claimDailyCheckIn() async {
+    final res = await _req((h) => http.post(
+      Uri.parse('$kBaseUrl/challenges/claim-daily-checkin'),
+      headers: h,
+    ));
+    if (res.statusCode != 200) throw Exception('Failed to claim daily check-in: ${res.body}');
+    return jsonDecode(res.body);
+  }
+
   // ── Social ─────────────────────────────────────────────────────────────────
   
   Future<void> followUser(String id) async {

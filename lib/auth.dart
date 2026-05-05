@@ -23,6 +23,10 @@ import 'shell.dart';
 import 'config_provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+// Set this to false to temporarily disable the OTP service in the app.
+// The code remains in place and can be re-enabled easily.
+const bool kOtpServiceEnabled = false;
+
 // ── API base ──────────────────────────────────────────────────────────────────
 // API base (managed by ApiService)
 
@@ -298,6 +302,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   Future<void> _sendOtp() async {
     final phone = _e164;
     if (phone.length < 12) { _err('Enter a valid 10-digit number'); return; }
+    
+    if (!kOtpServiceEnabled) {
+      // Bypassing OTP service as it is currently disabled
+      debugPrint('OTP Service disabled. Moving to OTP screen with bypass.');
+      _toOtp();
+      return;
+    }
+
     setState(() { _loading = true; _error = null; });
     try {
       final api = ref.read(apiServiceProvider);
@@ -359,6 +371,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   Future<void> _verifyOtp() async {
     final token = _otp;
     if (token.length != 6) { _err('Enter all 6 digits'); return; }
+
+    if (!kOtpServiceEnabled) {
+      // Mocking a successful verification for development purposes
+      _showBypassWarning();
+      
+      // Use a dummy session for now. Note: Backend requests requiring real 
+      // Supabase tokens will fail unless the backend is also in bypass mode.
+      await ref.read(authProvider.notifier).signIn(
+        accessToken:  'dummy_token_bypass',
+        refreshToken: 'dummy_refresh_bypass',
+        userId:       '00000000-0000-0000-0000-000000000000',
+        phone:        _e164,
+      );
+      return;
+    }
+
     setState(() { _loading = true; _error = null; });
     try {
       final api = ref.read(apiServiceProvider);
@@ -397,6 +425,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showBypassWarning() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('OTP Service is disabled. Using guest session.'),
+        backgroundColor: Colors.blueGrey,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _signInWithGoogle() async {

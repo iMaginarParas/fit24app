@@ -36,6 +36,7 @@ class OnboardingData {
   String exerciseFreq  = '';
   List<String> exerciseTypes = [];
   String city          = '';
+  String referredBy    = '';
 
   Map<String, dynamic> toJson() => {
     'name'           : name,
@@ -48,6 +49,7 @@ class OnboardingData {
     'exercise_freq'  : exerciseFreq,
     'exercise_types' : exerciseTypes,
     'city'           : city,
+    'referred_by'    : referredBy.trim().isEmpty ? null : referredBy.trim(),
   };
 }
 
@@ -65,7 +67,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   final PageController _page = PageController();
   int _step = 0;
-  static const _total = 11;
+  static const _total = 12;
   bool _saving = false;
   String? _error;
 
@@ -109,10 +111,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.setupProfile(_data.toJson());
+      final resp = await api.setupProfile(_data.toJson());
       
       await prefs.setBool(kOnboardingDoneKey, true);
-      await prefs.setString('profile_data', jsonEncode(_data.toJson()));
+      await prefs.setString('profile_data', jsonEncode(resp));
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AppShell()),
@@ -197,6 +199,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
               onPageChanged: (i) => setState(() => _step = i),
               children: [
                 _NameStep(data: _data, onChanged: setState),
+                _ReferralStep(data: _data, onChanged: setState),
                 _GenderStep(data: _data, onChanged: setState),
                 _AgeStep(data: _data, onChanged: setState),
                 _WeightStep(data: _data, onChanged: setState),
@@ -281,11 +284,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   bool _canProceed() {
     switch (_step) {
       case 0: return _data.name.trim().length >= 2;
-      case 1: return _data.gender.isNotEmpty;
-      case 5: return _data.dailyGoal > 0;
-      case 6: return _data.focusAreas.isNotEmpty;
-      case 7: return _data.exerciseFreq.isNotEmpty;
-      case 8: return _data.exerciseTypes.isNotEmpty;
+      case 2: return _data.gender.isNotEmpty;
+      case 6: return _data.dailyGoal > 0;
+      case 7: return _data.focusAreas.isNotEmpty;
+      case 8: return _data.exerciseFreq.isNotEmpty;
+      case 9: return _data.exerciseTypes.isNotEmpty;
       default: return true;
     }
   }
@@ -431,6 +434,61 @@ class _NameStepState extends State<_NameStep> {
               )),
             ]),
           ),
+      ],
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Step 1B — Referral
+// ─────────────────────────────────────────────────────────────────────────────
+class _ReferralStep extends StatefulWidget {
+  final OnboardingData data;
+  final void Function(void Function()) onChanged;
+  const _ReferralStep({required this.data, required this.onChanged});
+  @override State<_ReferralStep> createState() => _ReferralStepState();
+}
+
+class _ReferralStepState extends State<_ReferralStep> {
+  late TextEditingController _ctrl;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.data.referredBy);
+  }
+  @override void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => _StepShell(
+    question: "Got a Referral\nCode?",
+    subtitle: "Enter it below to claim your bonus points. Skip if you don't have one.",
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: kCard, borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: kBorder),
+          ),
+          child: TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(
+                fontSize: 26, fontWeight: FontWeight.w800,
+                color: Colors.white, letterSpacing: 2.0),
+            decoration: InputDecoration(
+              hintText: 'Enter Code',
+              hintStyle: TextStyle(
+                  fontSize: 22, color: Colors.white.withOpacity(0.15),
+                  fontWeight: FontWeight.w600, letterSpacing: 0),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 22),
+            ),
+            onChanged: (v) => widget.onChanged(() => widget.data.referredBy = v),
+          ),
+        ),
       ],
     ),
   );

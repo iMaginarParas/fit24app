@@ -18,6 +18,7 @@ import 'shell.dart';
 import 'notifications_settings_page.dart';
 import 'help_center_page.dart';
 import 'health_connect_settings_page.dart';
+import 'refer_and_earn_page.dart';
 
 // API base (managed by ApiService)
 
@@ -26,7 +27,11 @@ final profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((re
   final api = ref.watch(apiServiceProvider);
   final prefs = await SharedPreferences.getInstance();
   try {
-    final data = await api.getProfile();
+    final Map<String, dynamic> data = await api.getProfile();
+    // Add cache buster to avatar_url
+    if (data['avatar_url'] != null && (data['avatar_url'] as String).startsWith('http')) {
+      data['avatar_url'] = '${data['avatar_url']}?v=${DateTime.now().millisecondsSinceEpoch}';
+    }
     await prefs.setString('profile_data', jsonEncode(data));
     return data;
   } catch (_) {}
@@ -134,6 +139,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             SliverToBoxAdapter(child: _settingsGroup('Account Settings', [
               _settingTile(Icons.person_outline_rounded, kTeal, 'Edit Profile', 'Manage your info', 
                 () => _openEditSheet(ctx, p)),
+              _settingTile(Icons.card_giftcard_rounded, kAmber, 'Refer & Earn', 'Invite friends and earn points', 
+                () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const ReferAndEarnPage()))),
               _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', 
                 () => _showPlaceholder(ctx, 'Privacy Policy')),
             ])),
@@ -517,7 +524,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
       
       final api = ref.read(apiServiceProvider);
-      await api.uploadAvatar(image.path);
+      final response = await api.uploadAvatar(image.path);
+      
+      // Update local cache immediately by merging the new avatar_url
+      final prefs = await SharedPreferences.getInstance();
+      final cachedStr = prefs.getString('profile_data');
+      if (cachedStr != null && response['avatar_url'] != null) {
+        final Map<String, dynamic> cached = jsonDecode(cachedStr);
+        String newUrl = response['avatar_url'];
+        if (newUrl.startsWith('http')) {
+          newUrl = '$newUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+        }
+        cached['avatar_url'] = newUrl;
+        await prefs.setString('profile_data', jsonEncode(cached));
+      }
       
       ref.invalidate(profileDataProvider);
       

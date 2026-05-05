@@ -20,6 +20,8 @@ import 'tracking_page.dart';
 import 'notification_service.dart';
 import 'step_provider.dart';
 import 'activity.dart';
+import 'notifications_page.dart';
+import 'notifications_provider.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
 const _events = EventChannel('com.fit24app/steps_stream');
@@ -113,7 +115,22 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       final lastSync = prefs.getString('last_daily_point_sync');
       
       if (lastSync != today) {
-        // This is the first launch of the day, or 24h have passed.
+        // This is the first launch of the day.
+        try {
+          await ref.read(apiServiceProvider).claimDailyCheckIn();
+        } catch (_) {
+          // Backend might not be updated yet or already claimed. Add locally as fallback.
+          ref.read(userPointsProvider.notifier).updateLocal(200);
+        }
+
+        ref.read(notificationsProvider.notifier).addNotification(
+          title: 'Daily Check-in! 🎉',
+          message: "You earned 200 Fit24 points for opening the app today.",
+          points: '+200',
+          icon: Icons.wb_sunny_rounded,
+          color: kAmber,
+        );
+
         // Refresh the global point balance to ensure everything is synced.
         await ref.read(userPointsProvider.notifier).refresh();
         await prefs.setString('last_daily_point_sync', today);
@@ -372,10 +389,12 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
         final profile = ref.read(profileDataProvider).valueOrNull;
         final goal = profile?['daily_goal'] ?? kGoal;
         if (nVal >= goal && pVal < goal && pVal > 0) {
-          NotificationService().showNotification(
-            id: 200,
+          ref.read(notificationsProvider.notifier).addNotification(
             title: 'Goal Achieved! 🏆',
-            body: "Congratulations! You've reached your daily goal of $goal steps.",
+            message: "Congratulations! You've reached your daily goal of $goal steps.",
+            points: '+500', // Assuming a bonus for reaching the goal
+            icon: Icons.directions_run_rounded,
+            color: kTeal,
           );
         }
       }
@@ -522,6 +541,37 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       ),
       const SizedBox(width: 14),
       
+      GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage())),
+        child: Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 20),
+              if (ref.watch(notificationsProvider).any((n) => !n.isRead))
+                Positioned(
+                  top: 8, right: 10,
+                  child: Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: cPink, 
+                      shape: BoxShape.circle,
+                      border: Border.all(color: kBg, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(width: 14),
+
       GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
         child: AvatarCircle(

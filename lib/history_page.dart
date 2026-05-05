@@ -40,14 +40,23 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
       if (mounted) {
         setState(() {
-          final combined = [...local, ...remote];
+          final mappedRemote = remote.map((s) {
+            final map = Map<String, dynamic>.from(s as Map);
+            if (map['date'] == null && map['created_at'] != null) {
+              map['date'] = map['created_at'];
+            }
+            return map;
+          }).toList();
+
+          final combined = [...local, ...mappedRemote];
           final Map<String, Map<String, dynamic>> unique = {};
           for (var s in combined) {
             final key = s['id']?.toString() ?? s['date'].toString();
             unique[key] = s;
           }
           _sessions = unique.values.toList();
-          _sessions.sort((a, b) => DateTime.parse(b['date']).compareTo(DateTime.parse(a['date'])));
+          _sessions.sort((a, b) => DateTime.parse(b['date'] ?? DateTime.now().toIso8601String())
+            .compareTo(DateTime.parse(a['date'] ?? DateTime.now().toIso8601String())));
           _loading = false;
         });
       }
@@ -60,7 +69,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   Widget build(BuildContext context) {
     final filtered = _filter == null 
         ? _sessions 
-        : _sessions.where((s) => ActivityType.values[s['type'] as int] == _filter).toList();
+        : _sessions.where((s) => ActivityType.values[(s['type'] as num).toInt()] == _filter).toList();
 
     return Scaffold(
       backgroundColor: kBg,
@@ -198,7 +207,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   }
 
   Widget _sessionCard(Map<String, dynamic> s) {
-    final type = ActivityType.values[s['type'] as int];
+    final type = ActivityType.values[(s['type'] as num).toInt()];
     final dist = (s['distance'] as num?)?.toDouble() ?? 0.0;
     final dur = (s['duration'] as num?)?.toInt() ?? 0;
     final cal = (s['calories'] as num?)?.toInt() ?? 0;
