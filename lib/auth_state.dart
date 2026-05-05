@@ -1,7 +1,7 @@
 // auth_state.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Riverpod providers for authentication state.
-// Persists access_token, refresh_token, user_id, and phone to SharedPreferences
+// Persists access_token, refresh_token, user_id, phone and email to SharedPreferences
 // so the user stays logged in across app restarts.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -13,19 +13,22 @@ const _kAccessToken  = 'auth_access_token';
 const _kRefreshToken = 'auth_refresh_token';
 const _kUserId       = 'auth_user_id';
 const _kPhone        = 'auth_phone';
+const _kEmail        = 'auth_email';
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 class AuthSession {
   final String accessToken;
   final String refreshToken;
   final String userId;
-  final String phone;
+  final String? phone;
+  final String? email;
 
   const AuthSession({
     required this.accessToken,
     required this.refreshToken,
     required this.userId,
-    required this.phone,
+    this.phone,
+    this.email,
   });
 
   bool get isValid => accessToken.isNotEmpty && userId.isNotEmpty;
@@ -41,13 +44,15 @@ class AuthNotifier extends AsyncNotifier<AuthSession?> {
     final token  = prefs.getString(_kAccessToken)  ?? '';
     final refresh= prefs.getString(_kRefreshToken) ?? '';
     final uid    = prefs.getString(_kUserId)        ?? '';
-    final phone  = prefs.getString(_kPhone)         ?? '';
+    final phone  = prefs.getString(_kPhone);
+    final email  = prefs.getString(_kEmail);
     if (token.isEmpty || uid.isEmpty) return null;
     return AuthSession(
       accessToken:  token,
       refreshToken: refresh,
       userId:       uid,
       phone:        phone,
+      email:        email,
     );
   }
 
@@ -55,18 +60,22 @@ class AuthNotifier extends AsyncNotifier<AuthSession?> {
     required String accessToken,
     required String refreshToken,
     required String userId,
-    required String phone,
+    String? phone,
+    String? email,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAccessToken,  accessToken);
     await prefs.setString(_kRefreshToken, refreshToken);
     await prefs.setString(_kUserId,       userId);
-    await prefs.setString(_kPhone,        phone);
+    if (phone != null) await prefs.setString(_kPhone, phone);
+    if (email != null) await prefs.setString(_kEmail, email);
+    
     state = AsyncData(AuthSession(
       accessToken:  accessToken,
       refreshToken: refreshToken,
       userId:       userId,
       phone:        phone,
+      email:        email,
     ));
   }
 
@@ -76,6 +85,7 @@ class AuthNotifier extends AsyncNotifier<AuthSession?> {
     await prefs.remove(_kRefreshToken);
     await prefs.remove(_kUserId);
     await prefs.remove(_kPhone);
+    await prefs.remove(_kEmail);
     state = const AsyncData(null);
   }
 }

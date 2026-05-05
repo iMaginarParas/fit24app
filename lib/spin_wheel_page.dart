@@ -20,12 +20,12 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
   bool _hasSpunToday = false;
 
   final List<SpinSlot> _slots = [
-    SpinSlot('50 FIT24', 50, kBlue),
-    SpinSlot('60 FIT24', 60, kPink),
-    SpinSlot('70 FIT24', 70, kTeal),
-    SpinSlot('Try Again', 0, kBorder),
-    SpinSlot('80 FIT24', 80, kAmber),
-    SpinSlot('100 FIT24', 100, kGreen),
+    SpinSlot('50 PTS', 50, kBlue, Icons.bolt_rounded),
+    SpinSlot('60 PTS', 60, kPink, Icons.auto_awesome_rounded),
+    SpinSlot('70 PTS', 70, kTeal, Icons.stars_rounded),
+    SpinSlot('SKIP', 0, kBorder, Icons.refresh_rounded),
+    SpinSlot('80 PTS', 80, kAmber, Icons.workspace_premium_rounded),
+    SpinSlot('100 PTS', 100, kGreen, Icons.emoji_events_rounded),
   ];
 
   @override
@@ -124,19 +124,22 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: slot.points > 0 ? kAmber.withOpacity(0.1) : Colors.white.withOpacity(0.05),
+                color: slot.points > 0 ? slot.color.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                border: Border.all(color: slot.points > 0 ? slot.color.withOpacity(0.3) : Colors.white10, width: 2),
+                boxShadow: [
+                  if (slot.points > 0) BoxShadow(color: slot.color.withOpacity(0.2), blurRadius: 20)
+                ],
               ),
-              child: Icon(slot.points > 0 ? Icons.emoji_events_rounded : Icons.sentiment_dissatisfied_rounded,
-                color: slot.points > 0 ? kAmber : Colors.white54, size: 64),
+              child: Icon(slot.icon, color: slot.points > 0 ? slot.color : Colors.white54, size: 64),
             ),
             const SizedBox(height: 24),
             Text(slot.points > 0 
                 ? 'Congratulations! You just won ${slot.points} FIT24 points!'
                 : 'Better luck next time. Come back tomorrow for another spin!',
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 15, height: 1.5),
+              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16, height: 1.5, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -355,7 +358,8 @@ class SpinSlot {
   final String label;
   final int points;
   final Color color;
-  SpinSlot(this.label, this.points, this.color);
+  final IconData icon;
+  SpinSlot(this.label, this.points, this.color, this.icon);
 }
 
 class WheelPainter extends CustomPainter {
@@ -407,29 +411,51 @@ class WheelPainter extends CustomPainter {
         ..strokeWidth = 1.5;
       canvas.drawArc(rect, startAngle, sliceAngle, true, borderPaint);
 
-      // Draw Text with better typography feel
+      // Draw Icon (The "Image" part)
       canvas.save();
       canvas.translate(center.dx, center.dy);
       canvas.rotate(i * sliceAngle + sliceAngle / 2 - math.pi / 2);
       
+      // Icon rendering
+      final iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(slots[i].icon.codePoint),
+          style: TextStyle(
+            fontSize: 28,
+            fontFamily: slots[i].icon.fontFamily,
+            package: slots[i].icon.fontPackage,
+            color: Colors.white.withOpacity(0.9),
+            shadows: [
+              Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10),
+              Shadow(color: slots[i].color.withOpacity(0.8), blurRadius: 20),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      iconPainter.layout();
+      // Position icon further out
+      iconPainter.paint(canvas, Offset(radius * 0.65, -iconPainter.height / 2));
+
+      // Draw Text with professional typography
       final textPainter = TextPainter(
         text: TextSpan(
           text: slots[i].label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.95), 
+            color: Colors.white, 
             fontWeight: FontWeight.w900, 
-            fontSize: 14,
-            letterSpacing: 1.0,
+            fontSize: 12,
+            letterSpacing: 1.5,
             shadows: [
               Shadow(color: Colors.black.withOpacity(0.8), blurRadius: 4, offset: const Offset(1, 1)),
-              Shadow(color: slots[i].color.withOpacity(0.5), blurRadius: 8),
             ],
           ),
         ),
         textDirection: TextDirection.ltr,
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(radius * 0.48, -textPainter.height / 2));
+      // Position text closer to center
+      textPainter.paint(canvas, Offset(radius * 0.35, -textPainter.height / 2));
       
       canvas.restore();
     }

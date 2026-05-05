@@ -85,20 +85,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final phone = ref.watch(authProvider).valueOrNull?.phone ?? '';
+    final session = ref.watch(authProvider).valueOrNull;
+    final identity = (session?.phone != null && session!.phone!.isNotEmpty) 
+        ? session.phone! 
+        : (session?.email ?? 'Elite User');
     final profileAsync = ref.watch(profileDataProvider);
 
     return Scaffold(
       backgroundColor: kBg,
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
-        error: (_, __) => _body(context, phone, {}),
-        data: (p) => _body(context, phone, p),
+        error: (_, __) => _body(context, identity, {}),
+        data: (p) => _body(context, identity, p),
       ),
     );
   }
 
-  Widget _body(BuildContext ctx, String phone, Map<String, dynamic> p) {
+  Widget _body(BuildContext ctx, String identity, Map<String, dynamic> p) {
     return RefreshIndicator(
       color: kTeal,
       backgroundColor: const Color(0xFF111111),
@@ -132,7 +135,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(child: _heroProfile(ctx, phone, p)),
+            SliverToBoxAdapter(child: _heroProfile(ctx, identity, p)),
             SliverToBoxAdapter(child: _achievementsSection()),
             SliverToBoxAdapter(child: _historyChart()),
             SliverToBoxAdapter(child: _statsGrid()),
@@ -175,7 +178,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ]),
   );
 
-  Widget _heroProfile(BuildContext ctx, String phone, Map<String, dynamic> p) {
+  Widget _heroProfile(BuildContext ctx, String identity, Map<String, dynamic> p) {
     final name = p['name'] as String? ?? 'Elite User';
     final city = p['city'] as String? ?? 'San Francisco, CA';
     

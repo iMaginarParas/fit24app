@@ -48,25 +48,32 @@ class ApiService {
 
   // ── Auth ───────────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> sendOtp(String phone, String mode) async {
+  Future<Map<String, dynamic>> sendOtp({String? phone, String? email, required String mode}) async {
+    final body = <String, dynamic>{'mode': mode};
+    if (phone != null) body['phone'] = phone;
+    if (email != null) body['email'] = email;
+
     final res = await http.post(
       Uri.parse('$kBaseUrl/auth/send-otp'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone, 'mode': mode}),
+      body: jsonEncode(body),
     );
     if (res.statusCode != 200) throw Exception('Failed to send OTP: ${res.body}');
     return jsonDecode(res.body);
   }
 
-  Future<Map<String, dynamic>> verifyOtp(String phone, String token, String mode) async {
+  Future<Map<String, dynamic>> verifyOtp({String? phone, String? email, required String token, required String mode}) async {
+    final body = <String, dynamic>{
+      'token': token,
+      'mode': mode,
+    };
+    if (phone != null) body['phone'] = phone;
+    if (email != null) body['email'] = email;
+
     final res = await http.post(
       Uri.parse('$kBaseUrl/auth/verify-otp'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'phone': phone,
-        'token': token,
-        'mode': mode,
-      }),
+      body: jsonEncode(body),
     );
     if (res.statusCode != 200) throw Exception('Failed to verify OTP: ${res.body}');
     return jsonDecode(res.body);
