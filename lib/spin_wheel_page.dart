@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:ui' as ui;
 import 'shell.dart';
 import 'points_provider.dart';
 import 'notifications_provider.dart';
@@ -23,18 +24,18 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
   Timer? _countdownTimer;
 
   final List<SpinSlot> _slots = [
-    SpinSlot('50 PTS', 50, kBlue, Icons.fitness_center_rounded),
-    SpinSlot('60 PTS', 60, kPink, Icons.directions_run_rounded),
-    SpinSlot('70 PTS', 70, kTeal, Icons.bolt_rounded),
-    SpinSlot('TRY AGAIN', 0, kBorder, Icons.sentiment_dissatisfied_rounded),
-    SpinSlot('80 PTS', 80, kAmber, Icons.timer_rounded),
-    SpinSlot('100 PTS', 100, kGreen, Icons.emoji_events_rounded),
+    SpinSlot('50 PTS', 50, const Color(0xFFFF3D00), Icons.fitness_center_rounded),
+    SpinSlot('60 PTS', 60, Colors.white, Icons.directions_run_rounded),
+    SpinSlot('70 PTS', 70, const Color(0xFFFF3D00), Icons.bolt_rounded),
+    SpinSlot('TRY AGAIN', 0, Colors.white, Icons.sentiment_dissatisfied_rounded),
+    SpinSlot('80 PTS', 80, const Color(0xFFFF3D00), Icons.timer_rounded),
+    SpinSlot('100 PTS', 100, Colors.white, Icons.emoji_events_rounded),
   ];
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 4));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     _checkSpinAvailability();
   }
 
@@ -99,19 +100,14 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
 
     setState(() => _spinning = true);
 
-    // Randomize winning slot
     final rand = math.Random();
     final winIndex = rand.nextInt(_slots.length);
     
-    // Calculate rotation
     final sliceAngle = 2 * math.pi / _slots.length;
-    // Base rotation to land on index 0
-    // Then subtract angle to land on winIndex
-    // Add multiple full rotations
-    final targetAngle = (10 * 2 * math.pi) - (winIndex * sliceAngle) - (sliceAngle / 2);
+    final targetAngle = (12 * 2 * math.pi) - (winIndex * sliceAngle) - (sliceAngle / 2);
 
     _anim = Tween<double>(begin: 0, end: targetAngle).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCirc)
+      CurvedAnimation(parent: _ctrl, curve: const Interval(0, 1.0, curve: Curves.easeOutQuart))
     );
 
     _ctrl.reset();
@@ -134,7 +130,6 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
 
     if (wonSlot.points > 0) {
       ref.read(userPointsProvider.notifier).updateLocal(wonSlot.points);
-      
       ref.read(notificationsProvider.notifier).addNotification(
         title: 'Lucky Spin! 🎡',
         message: 'You won ${wonSlot.points} FIT24 points from the daily spin.',
@@ -149,70 +144,56 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: kCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-          side: BorderSide(color: Colors.white.withOpacity(0.1)),
-        ),
-        titlePadding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-        title: Text(slot.points > 0 ? 'YOU WON!' : 'AW, SNAP!', 
-          style: TextStyle(
-            color: slot.points > 0 ? kAmber : Colors.white, 
-            fontWeight: FontWeight.w900,
-            fontSize: 24,
-            letterSpacing: 1,
+      builder: (_) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: AlertDialog(
+          backgroundColor: Colors.black.withOpacity(0.8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32),
+            side: BorderSide(color: Colors.white.withOpacity(0.15), width: 1.5),
           ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: slot.points > 0 ? slot.color.withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                border: Border.all(color: slot.points > 0 ? slot.color.withOpacity(0.3) : Colors.white10, width: 2),
-                boxShadow: [
-                  if (slot.points > 0) BoxShadow(color: slot.color.withOpacity(0.2), blurRadius: 20)
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 20),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  _GlowOrb(color: slot.points > 0 ? kGreen.withOpacity(0.4) : Colors.red.withOpacity(0.4), size: 120),
+                  Icon(slot.icon, color: slot.points > 0 ? kGreen : Colors.white54, size: 70),
                 ],
               ),
-              child: Icon(slot.icon, color: slot.points > 0 ? slot.color : Colors.white54, size: 64),
-            ),
-            const SizedBox(height: 24),
-            Text(slot.points > 0 
-                ? 'Congratulations! You just won ${slot.points} FIT24 points!'
-                : 'Better luck next time. Come back tomorrow for another spin!',
-              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16, height: 1.5, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: GestureDetector(
+              const SizedBox(height: 24),
+              Text(slot.points > 0 ? 'LEGENDARY WIN!' : 'BETTER LUCK', 
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: 1, fontStyle: FontStyle.italic)),
+              const SizedBox(height: 12),
+              Text(slot.points > 0 
+                  ? 'You grabbed ${slot.points} FIT24 points!\nYour rewards have been added to your vault.'
+                  : 'The wheel didn\'t stop on a prize this time.\nCome back in 24 hours for another shot!',
+                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14, height: 1.5),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
                   decoration: BoxDecoration(
-                    gradient: slot.points > 0 ? kGreenGrad : null,
-                    color: slot.points > 0 ? null : Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+                    gradient: slot.points > 0 ? kGreenGrad : LinearGradient(colors: [Colors.white.withOpacity(0.1), Colors.white.withOpacity(0.05)]),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      if (slot.points > 0) BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))
+                    ],
                   ),
                   child: Center(
-                    child: Text(slot.points > 0 ? 'CLAIM POINTS' : 'GOT IT', 
-                      style: TextStyle(
-                        color: slot.points > 0 ? Colors.black : Colors.white, 
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      )
-                    ),
+                    child: Text(slot.points > 0 ? 'CLAIM REWARD' : 'CLOSE', 
+                      style: TextStyle(color: slot.points > 0 ? Colors.black : Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -221,146 +202,137 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: const Color(0xFF08090A),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle),
-            child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+            style: IconButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.05)),
           ),
-          onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Luck of the Day', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
+        title: const Text('Luck of the Day', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
         centerTitle: true,
       ),
       body: Stack(
         children: [
-          // Background decorations
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/earn_bg.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.75)),
-          ),
-          // Animated Glow Orbs
-          Positioned(
-            top: 100, left: -50,
-            child: _GlowOrb(color: kGreen.withOpacity(0.15), size: 300),
-          ),
-          Positioned(
-            bottom: 50, right: -100,
-            child: _GlowOrb(color: kTeal.withOpacity(0.15), size: 400),
-          ),
-          
-          // Confetti Layer
-          if (_ctrl.isCompleted && !_spinning)
-            Positioned.fill(child: IgnorePointer(child: _ConfettiEffect())),
+          // Background Particles & Gradients
+          const Positioned.fill(child: _PremiumBackground()),
           
           SafeArea(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(),
-                const Text('Daily Spin', style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w800, color: kGreen, letterSpacing: 2
-                )),
+                const SizedBox(height: 20),
+                const Text('DAILY REWARDS', style: TextStyle(color: kGreen, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 3)),
                 const SizedBox(height: 8),
-                const Text('Spin & Win', style: TextStyle(
-                  fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1.5, height: 1.1
-                )),
+                const Text('Spin & Win', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 48, fontStyle: FontStyle.italic, letterSpacing: -1.5)),
                 const SizedBox(height: 12),
-                Text('Spin the wheel every day for a chance\nto win up to 100 FIT24 points!', 
-                  style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.7), height: 1.5, fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text('Unlock exclusive fitness points and premium rewards every 24 hours.', 
+                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                const SizedBox(height: 60),
                 
-                // The Wheel
+                const Spacer(),
+                
+                // The Wheel Section
                 Center(
                   child: Stack(
-                    alignment: Alignment.topCenter,
+                    alignment: Alignment.center,
                     children: [
+                      // Outer Glow
+                      _GlowOrb(color: Colors.amber.withOpacity(0.1), size: 380),
+                      
+                      // The Wheel itself
                       Container(
-                        margin: const EdgeInsets.only(top: 14),
-                        padding: const EdgeInsets.all(12),
+                        width: 320, height: 320,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: kCard,
-                          gradient: SweepGradient(
-                            colors: [
-                              kGreen.withOpacity(0.1),
-                              kTeal.withOpacity(0.1),
-                              kPurple.withOpacity(0.1),
-                              kGreen.withOpacity(0.1),
-                            ],
-                            stops: const [0, 0.33, 0.66, 1],
-                          ),
-                          border: Border.all(color: Colors.white.withOpacity(0.1), width: 10),
+                          border: Border.all(color: Colors.amber, width: 8),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 40, spreadRadius: 10),
-                            BoxShadow(color: kGreen.withOpacity(0.2), blurRadius: 60, spreadRadius: -5),
+                            BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 40, spreadRadius: 10),
+                            BoxShadow(color: Colors.amber.withOpacity(0.2), blurRadius: 60),
                           ],
                         ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            AnimatedBuilder(
-                              animation: _ctrl,
-                              builder: (context, child) {
-                                return Transform.rotate(
-                                  angle: _ctrl.isAnimating || _ctrl.isCompleted ? _anim.value : 0,
-                                  child: SizedBox(
-                                    width: 280, height: 280,
-                                    child: CustomPaint(
-                                      painter: WheelPainter(_slots),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            // Static Logo in center
-                            Container(
-                              width: 60, height: 60,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: kBg,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)
-                                ],
-                              ),
-                              child: Image.asset('assets/logo.png', fit: BoxFit.contain),
-                            ),
-                          ],
+                        child: ClipOval(
+                          child: AnimatedBuilder(
+                            animation: _ctrl,
+                            builder: (context, child) {
+                              return Transform.rotate(
+                                angle: _ctrl.isAnimating || _ctrl.isCompleted ? _anim.value : 0,
+                                child: CustomPaint(
+                                  painter: PremiumWheelPainter(_slots),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
-                      // Pointer
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: kGreen.withOpacity(0.5), blurRadius: 16, spreadRadius: 2),
-                            BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 8, offset: const Offset(0, 4)),
-                          ],
+                      
+                      // Light Bulbs Ring
+                      IgnorePointer(
+                        child: SizedBox(
+                          width: 336, height: 336,
+                          child: CustomPaint(painter: BulbsPainter()),
                         ),
-                        child: Stack(
-                          alignment: Alignment.topCenter,
+                      ),
+
+                      // Center Hub (3D Look)
+                      Container(
+                        width: 70, height: 70,
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.5), width: 3),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, spreadRadius: 2),
+                            const BoxShadow(color: Colors.white24, blurRadius: 5, offset: Offset(-2, -2)),
+                          ],
+                          gradient: const RadialGradient(
+                            colors: [Color(0xFFFFECB3), Color(0xFFFFD54F), Color(0xFFFFA000)],
+                            stops: [0, 0.6, 1],
+                          ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 40, height: 40,
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+                            child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                          ),
+                        ),
+                      ),
+                      
+                      // Top Pointer (Metallic Style)
+                      Positioned(
+                        top: -10,
+                        child: Column(
                           children: [
-                            const Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 64),
-                            Positioned(
-                              top: 4,
-                              child: Container(
-                                width: 8, height: 8,
-                                decoration: const BoxDecoration(color: kGreen, shape: BoxShape.circle),
+                            Container(
+                              width: 30, height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.amber,
+                                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFD54F), Color(0xFFFFA000)],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 5))
+                                ],
                               ),
+                              child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black, size: 24),
+                            ),
+                            Container(
+                              width: 10, height: 10,
+                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.white, blurRadius: 8)]),
                             ),
                           ],
                         ),
@@ -371,46 +343,84 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
                 
                 const Spacer(),
                 
-                // Spin Button
+                // Bottom Section: Button & Countdown
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: GestureDetector(
-                    onTap: _spin,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      decoration: BoxDecoration(
-                        gradient: _hasSpunToday ? null : kGreenGrad,
-                        color: _hasSpunToday ? Colors.white.withOpacity(0.05) : null,
-                        borderRadius: BorderRadius.circular(24),
-                        border: _hasSpunToday ? Border.all(color: Colors.white.withOpacity(0.1)) : null,
-                        boxShadow: _hasSpunToday ? [] : [
-                          BoxShadow(color: kGreen.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 8))
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          _hasSpunToday 
-                            ? (_timeLeft != null ? 'NEXT SPIN IN ${_formatDuration(_timeLeft!)}' : 'COME BACK TOMORROW') 
-                            : (_spinning ? 'SPINNING...' : 'SPIN NOW'), 
-                          style: TextStyle(
-                            fontSize: 16, 
-                            fontWeight: FontWeight.w900, 
-                            color: _hasSpunToday ? Colors.white.withOpacity(0.4) : Colors.black,
-                            letterSpacing: 1,
-                          )
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  child: Column(
+                    children: [
+                      // Countdown Glassmorphism Card
+                      if (_hasSpunToday && _timeLeft != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.03),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.timer_outlined, color: Colors.amber, size: 20),
+                                  const SizedBox(width: 12),
+                                  Text('NEXT SPIN IN ', style: TextStyle(color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1)),
+                                  Text(_formatDuration(_timeLeft!), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, fontStyle: FontStyle.italic)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      
+                      // Main Action Button
+                      GestureDetector(
+                        onTap: _spin,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 22),
+                          decoration: BoxDecoration(
+                            gradient: _hasSpunToday ? null : kGreenGrad,
+                            color: _hasSpunToday ? Colors.white.withOpacity(0.05) : null,
+                            borderRadius: BorderRadius.circular(24),
+                            border: _hasSpunToday ? Border.all(color: Colors.white.withOpacity(0.1)) : null,
+                            boxShadow: _hasSpunToday ? [] : [
+                              BoxShadow(color: kGreen.withOpacity(0.4), blurRadius: 30, offset: const Offset(0, 10))
+                            ],
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!_hasSpunToday) const Icon(Icons.bolt_rounded, color: Colors.black, size: 20),
+                                if (!_hasSpunToday) const SizedBox(width: 8),
+                                Text(
+                                  _hasSpunToday ? 'ALREADY CLAIMED' : (_spinning ? 'SPINNING...' : 'SPIN NOW'), 
+                                  style: TextStyle(
+                                    fontSize: 18, 
+                                    fontWeight: FontWeight.w900, 
+                                    color: _hasSpunToday ? Colors.white.withOpacity(0.3) : Colors.black,
+                                    letterSpacing: 1,
+                                  )
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                if (_hasSpunToday && _timeLeft != null)
-                  Text('Your next free spin will be available in ${_formatDuration(_timeLeft!)}', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
-                const SizedBox(height: 40),
               ],
             ),
           ),
+          
+          // Confetti Overlay
+          if (_ctrl.isCompleted && !_spinning)
+            const Positioned.fill(child: IgnorePointer(child: _ConfettiEffect())),
         ],
       ),
     );
@@ -425,156 +435,165 @@ class SpinSlot {
   SpinSlot(this.label, this.points, this.color, this.icon);
 }
 
-class WheelPainter extends CustomPainter {
+class PremiumWheelPainter extends CustomPainter {
   final List<SpinSlot> slots;
-  WheelPainter(this.slots);
+  PremiumWheelPainter(this.slots);
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2;
     final sliceAngle = 2 * math.pi / slots.length;
-
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     for (int i = 0; i < slots.length; i++) {
       final startAngle = i * sliceAngle - math.pi / 2;
       
-      // Professional Gradient Slices
-      final paint = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            slots[i].color.withOpacity(0.6), 
+      // Slice Fill with Gradient
+      final slicePaint = Paint()
+        ..shader = ui.Gradient.radial(
+          center,
+          radius,
+          [
             slots[i].color,
-            slots[i].color.withOpacity(0.8),
+            slots[i].color.withOpacity(0.85),
+            slots[i].color.withOpacity(0.7),
           ],
-          stops: const [0.0, 0.7, 1.0],
-          center: Alignment.center,
-          radius: 1.2,
-        ).createShader(rect)
+          [0, 0.7, 1],
+        )
         ..style = PaintingStyle.fill;
       
-      canvas.drawArc(rect, startAngle, sliceAngle, true, paint);
+      canvas.drawArc(rect, startAngle, sliceAngle, true, slicePaint);
 
-      // Inner shadow/depth for slices
-      final innerShadowPaint = Paint()
-        ..color = Colors.black.withOpacity(0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      canvas.drawArc(rect, startAngle, sliceAngle, true, innerShadowPaint);
-
-      // Draw polished borders
+      // Slice Borders
       final borderPaint = Paint()
-        ..shader = LinearGradient(
-          colors: [Colors.white.withOpacity(0.05), Colors.white.withOpacity(0.5), Colors.white.withOpacity(0.05)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ).createShader(rect)
+        ..color = Colors.black.withOpacity(0.1)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
+        ..strokeWidth = 2;
       canvas.drawArc(rect, startAngle, sliceAngle, true, borderPaint);
 
-      // Draw Icon (The "Image" part)
+      // Text and Icons
       canvas.save();
       canvas.translate(center.dx, center.dy);
       canvas.rotate(i * sliceAngle + sliceAngle / 2 - math.pi / 2);
       
-      // Icon rendering
+      final textColor = slots[i].color == Colors.white ? const Color(0xFFFF3D00) : Colors.white;
+
+      // Icon
       final iconPainter = TextPainter(
         text: TextSpan(
           text: String.fromCharCode(slots[i].icon.codePoint),
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 26,
             fontFamily: slots[i].icon.fontFamily,
             package: slots[i].icon.fontPackage,
-            color: Colors.white.withOpacity(0.9),
-            shadows: [
-              Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10),
-              Shadow(color: slots[i].color.withOpacity(0.8), blurRadius: 20),
-            ],
+            color: textColor.withOpacity(0.9),
+            fontStyle: FontStyle.italic,
           ),
         ),
         textDirection: TextDirection.ltr,
       );
       iconPainter.layout();
-      // Position text closer to center
-      iconPainter.paint(canvas, Offset(radius * 0.65, -iconPainter.height / 2));
+      iconPainter.paint(canvas, Offset(radius * 0.6, -iconPainter.height / 2));
 
-      // Draw Text with professional typography
+      // Label
       final textPainter = TextPainter(
         text: TextSpan(
           text: slots[i].label,
           style: TextStyle(
-            color: Colors.white, 
+            color: textColor, 
             fontWeight: FontWeight.w900, 
-            fontSize: 9, 
-            height: 1.1,
-            letterSpacing: 0.2,
-            shadows: [
-              Shadow(color: Colors.black.withOpacity(0.8), blurRadius: 4, offset: const Offset(1, 1)),
-            ],
+            fontSize: 10, 
+            fontStyle: FontStyle.italic,
+            letterSpacing: 0.5,
           ),
         ),
-        textAlign: TextAlign.center,
         textDirection: TextDirection.ltr,
       );
-      textPainter.layout(maxWidth: radius * 0.5);
-      // Position text closer to center
-      textPainter.paint(canvas, Offset(radius * 0.25, -textPainter.height / 2));
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(radius * 0.3, -textPainter.height / 2));
       
       canvas.restore();
     }
     
-    // Outer LED Ticks
-    final tickPaint = Paint()..style = PaintingStyle.fill;
-    for (int i = 0; i < 48; i++) {
-      final angle = (i * 2 * math.pi / 48) - math.pi / 2;
-      final isSlotTick = i % (48 ~/ slots.length) == 0;
-      
-      tickPaint.color = isSlotTick ? kGreen : Colors.white.withOpacity(0.2);
-      final tickRadius = isSlotTick ? 3.0 : 1.5;
-      
-      final x = center.dx + (radius + 12) * math.cos(angle);
-      final y = center.dy + (radius + 12) * math.sin(angle);
-      
-      if (isSlotTick) {
-        canvas.drawCircle(Offset(x, y), tickRadius + 2, Paint()..color = kGreen.withOpacity(0.3)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-      }
-      canvas.drawCircle(Offset(x, y), tickRadius, tickPaint);
-    }
-
-    // Outer professional ring
-    final outerRingPaint = Paint()
-      ..shader = SweepGradient(
-        colors: [Colors.white.withOpacity(0.01), Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.01)],
-      ).createShader(Rect.fromCircle(center: center, radius: radius + 20))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(center, radius + 20, outerRingPaint);
-
-    // Center area depth (Glassmorphism / Neon feel)
-    final centerPaint = Paint()..color = const Color(0xFF0F1216);
-    canvas.drawCircle(center, radius * 0.24, centerPaint);
-    
-    final glowPaint = Paint()
-      ..color = kGreen.withOpacity(0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
-    canvas.drawCircle(center, radius * 0.24, glowPaint);
-
-    // Center border with inner shadow
-    final centerBorderPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [kGreen, kTeal, kBlue],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromCircle(center: center, radius: radius * 0.24))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-    canvas.drawCircle(center, radius * 0.24, centerBorderPaint);
+    // Glossy Overlay
+    final glossyPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(center.dx, 0),
+        Offset(center.dx, size.height),
+        [
+          Colors.white.withOpacity(0.15),
+          Colors.white.withOpacity(0.0),
+          Colors.black.withOpacity(0.1),
+        ],
+        [0, 0.5, 1],
+      );
+    canvas.drawCircle(center, radius, glossyPaint);
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class BulbsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    
+    for (int i = 0; i < 16; i++) {
+      final angle = (i * 2 * math.pi / 16) - math.pi / 2;
+      final bulbPos = Offset(
+        center.dx + radius * math.cos(angle),
+        center.dy + radius * math.sin(angle),
+      );
+      
+      // Glow
+      canvas.drawCircle(
+        bulbPos, 8,
+        Paint()..color = Colors.amber.withOpacity(0.4)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+      
+      // Core
+      canvas.drawCircle(
+        bulbPos, 4,
+        Paint()..color = const Color(0xFFFFF9C4),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class _PremiumBackground extends StatelessWidget {
+  const _PremiumBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF08090A), Color(0xFF121417), Color(0xFF08090A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -100, left: -100,
+            child: _GlowOrb(color: const Color(0xFF2E7D32).withOpacity(0.08), size: 400),
+          ),
+          Positioned(
+            bottom: -150, right: -150,
+            child: _GlowOrb(color: const Color(0xFF00695C).withOpacity(0.1), size: 500),
+          ),
+          // Floating Particles could be added here as a CustomPaint
+        ],
+      ),
+    );
+  }
 }
 
 class _GlowOrb extends StatelessWidget {
@@ -589,25 +608,26 @@ class _GlowOrb extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [BoxShadow(color: color, blurRadius: size / 2, spreadRadius: size / 4)],
+        boxShadow: [BoxShadow(color: color, blurRadius: size / 2.5, spreadRadius: size / 5)],
       ),
     );
   }
 }
 
 class _ConfettiEffect extends StatefulWidget {
+  const _ConfettiEffect();
   @override
   State<_ConfettiEffect> createState() => _ConfettiEffectState();
 }
 
 class _ConfettiEffectState extends State<_ConfettiEffect> with SingleTickerProviderStateMixin {
   late AnimationController _c;
-  final List<_Confetto> _p = List.generate(40, (i) => _Confetto());
+  final List<_Confetto> _p = List.generate(60, (i) => _Confetto());
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 3))..forward();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 4))..forward();
   }
 
   @override
@@ -628,10 +648,10 @@ class _ConfettiEffectState extends State<_ConfettiEffect> with SingleTickerProvi
 class _Confetto {
   double x = math.Random().nextDouble();
   double y = -0.1;
-  double vx = math.Random().nextDouble() * 0.02 - 0.01;
-  double vy = math.Random().nextDouble() * 0.05 + 0.02;
-  Color color = [kGreen, kAmber, kTeal, kPink, kBlue][math.Random().nextInt(5)];
-  double size = math.Random().nextDouble() * 8 + 4;
+  double vx = math.Random().nextDouble() * 0.04 - 0.02;
+  double vy = math.Random().nextDouble() * 0.06 + 0.03;
+  Color color = [kGreen, kAmber, Colors.white, Colors.redAccent, Colors.blueAccent][math.Random().nextInt(5)];
+  double size = math.Random().nextDouble() * 10 + 5;
   double rot = math.Random().nextDouble() * 2 * math.pi;
 }
 
@@ -648,8 +668,11 @@ class _ConfettiPainter extends CustomPainter {
       
       canvas.save();
       canvas.translate(x, y);
-      canvas.rotate(c.rot + progress * 5);
-      canvas.drawRect(Rect.fromLTWH(0, 0, c.size, c.size / 2), Paint()..color = c.color.withOpacity(1.0 - progress));
+      canvas.rotate(c.rot + progress * 8);
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, c.size, c.size / 2.5), 
+        Paint()..color = c.color.withOpacity(1.0 - progress)..style = PaintingStyle.fill
+      );
       canvas.restore();
     }
   }
