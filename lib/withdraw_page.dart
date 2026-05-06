@@ -16,8 +16,8 @@ class _WithdrawPageState extends ConsumerState<WithdrawPage> {
   final TextEditingController _pointsController = TextEditingController();
   int _selectedMethod = 0; // 0: PayPal, 1: Bank, 2: Crypto
 
-  // Assume conversion rate: 1,000 points = ₹1
-  static const double _conversionRate = 0.001;
+  // Assume conversion rate: 1,000 points = ₹0 (Disabled)
+  static const double _conversionRate = 0.0;
 
   @override
   void dispose() {
@@ -227,7 +227,7 @@ class _WithdrawPageState extends ConsumerState<WithdrawPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Rate: 1,000 pts = ₹1', style: TextStyle(
+            Text('Rate: 1,000 pts = ₹0', style: TextStyle(
                 fontSize: 12, color: Colors.white.withOpacity(0.5))),
             Text('Min: 5,000 pts', style: TextStyle(
                 fontSize: 12, color: Colors.white.withOpacity(0.5))),
