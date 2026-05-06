@@ -10,6 +10,7 @@ import 'activity.dart';
 import 'profile.dart';
 import 'tracking_page.dart';
 import 'step_provider.dart';
+import 'notifications_provider.dart';
 
 // ── TOKENS ───────────────────────────────────────────────────────────────────
 const kBg      = Color(0xFF0A0D0F);
@@ -96,11 +97,86 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(stepSyncProvider);
     ref.watch(globalSyncProvider);
     
+    // Listen for new referral notifications to show popup
+    ref.listen<List<NotificationItem>>(notificationsProvider, (prev, next) {
+      final unreadReferral = next.where((n) => !n.isRead && (n.icon == Icons.card_giftcard_rounded)).toList();
+      if (unreadReferral.isNotEmpty) {
+        _showRewardPopup(unreadReferral.first);
+      }
+    });
+    
     return Scaffold(
       backgroundColor: kBg,
       extendBody: true,
       body: IndexedStack(index: _i, children: _pages),
       bottomNavigationBar: _Nav(current: _i, onTap: (i) => setState(() => _i = i)),
+    );
+  }
+
+  void _showRewardPopup(NotificationItem notif) {
+    // Mark as read immediately so it doesn't loop
+    ref.read(notificationsProvider.notifier).markAllAsRead();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: kAmber.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(color: kAmber.withOpacity(0.15), blurRadius: 40, spreadRadius: 10)
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: kAmber.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.card_giftcard_rounded, size: 64, color: kAmber),
+                ),
+                const SizedBox(height: 24),
+                const Text('REWARD EARNED!', style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w900, color: kAmber, letterSpacing: 2)),
+                const SizedBox(height: 12),
+                Text(notif.message, 
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white, height: 1.4)),
+                const SizedBox(height: 32),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: kAmber,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(color: kAmber.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text('AWESOME!', style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
