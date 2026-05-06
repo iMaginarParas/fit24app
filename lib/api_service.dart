@@ -228,6 +228,24 @@ class ApiService {
     }
   }
 
+  Future<List<dynamic>> getNotifications() async {
+    final res = await _req((h) => http.get(
+      Uri.parse('$kBaseUrl/profile/me/notifications'),
+      headers: h,
+    ));
+    if (res.statusCode != 200) throw Exception('Failed to fetch notifications');
+    return jsonDecode(res.body);
+  }
+
+  Future<List<dynamic>> getNetwork() async {
+    final res = await _req((h) => http.get(
+      Uri.parse('$kBaseUrl/profile/me/network'),
+      headers: h,
+    ));
+    if (res.statusCode != 200) throw Exception('Failed to fetch network');
+    return jsonDecode(res.body);
+  }
+
   // ── Content ────────────────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCategories() async {

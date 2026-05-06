@@ -18,11 +18,29 @@ class ReferAndEarnPage extends ConsumerStatefulWidget {
 
 class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
   String _referralCode = 'LOADING...';
+  List<dynamic> _network = [];
+  bool _isLoadingNetwork = true;
 
   @override
   void initState() {
     super.initState();
     _loadCode();
+    _fetchNetwork();
+  }
+
+  Future<void> _fetchNetwork() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final data = await api.getNetwork();
+      if (mounted) {
+        setState(() {
+          _network = data;
+          _isLoadingNetwork = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingNetwork = false);
+    }
   }
 
   Future<void> _loadCode({bool forceRefresh = false}) async {
@@ -254,26 +272,40 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
                               width: isTop ? 40 : 32,
                               height: isTop ? 40 : 32,
                               decoration: BoxDecoration(
-                                color: color.withOpacity(0.12),
+                                color: _network.length > index ? kGreen.withOpacity(0.2) : color.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Icon(item['icon'] as IconData, color: color, size: isTop ? 20 : 16),
+                              child: Icon(
+                                _network.length > index ? Icons.check_circle_rounded : item['icon'] as IconData, 
+                                color: _network.length > index ? kGreen : color, 
+                                size: isTop ? 20 : 16
+                              ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item['level'] as String, style: TextStyle(
-                                    fontSize: isTop ? 15 : 13, 
-                                    fontWeight: isTop ? FontWeight.w900 : FontWeight.w700, 
-                                    color: Colors.white.withOpacity(isTop ? 1.0 : 0.9)
-                                  )),
-                                  if (isTop) ...[
-                                    const SizedBox(height: 2),
-                                    Text('Primary referral bonus', style: TextStyle(
-                                      fontSize: 10, color: Colors.white.withOpacity(0.4))),
-                                  ],
+                                  Text(
+                                    _network.length > index 
+                                      ? (_network[index]['name'] ?? 'Friend') 
+                                      : item['level'] as String, 
+                                    style: TextStyle(
+                                      fontSize: isTop ? 15 : 13, 
+                                      fontWeight: isTop ? FontWeight.w900 : FontWeight.w700, 
+                                      color: _network.length > index ? kGreen : Colors.white.withOpacity(isTop ? 1.0 : 0.9)
+                                    )
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _network.length > index 
+                                      ? 'Successfully Referred 🎉' 
+                                      : (isTop ? 'Primary referral bonus' : 'Unlock by inviting a friend'), 
+                                    style: TextStyle(
+                                      fontSize: 10, 
+                                      color: _network.length > index ? kGreen.withOpacity(0.6) : Colors.white.withOpacity(0.4)
+                                    )
+                                  ),
                                 ],
                               ),
                             ),
@@ -281,9 +313,9 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text('+${item['points']}', style: TextStyle(
-                                  fontSize: isTop ? 16 : 14, fontWeight: FontWeight.w900, color: color)),
+                                  fontSize: isTop ? 16 : 14, fontWeight: FontWeight.w900, color: _network.length > index ? kGreen : color)),
                                 Text('FIT24', style: TextStyle(
-                                  fontSize: 8, fontWeight: FontWeight.w800, color: color.withOpacity(0.6))),
+                                  fontSize: 8, fontWeight: FontWeight.w800, color: (_network.length > index ? kGreen : color).withOpacity(0.6))),
                               ],
                             ),
                           ],
