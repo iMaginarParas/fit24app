@@ -202,6 +202,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               imagePath: p['avatar_url'] as String?,
               gender: p['gender'] as String?,
             ),
+            if (profileAsync.isRefreshing)
+              Container(
+                width: 90, height: 90,
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
+              ),
             Positioned(
               bottom: 0, right: 0,
               child: Container(
