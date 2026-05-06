@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'shell.dart';
 import 'points_provider.dart';
 import 'notifications_provider.dart';
+import 'api_service.dart';
 
 class SpinWheelPage extends ConsumerStatefulWidget {
   const SpinWheelPage({super.key});

@@ -135,7 +135,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(child: _heroProfile(ctx, identity, p)),
+            SliverToBoxAdapter(child: _heroProfile(ctx, identity, p, profileAsync.isRefreshing)),
             SliverToBoxAdapter(child: _achievementsSection()),
             SliverToBoxAdapter(child: _historyChart()),
             SliverToBoxAdapter(child: _statsGrid()),
@@ -178,7 +178,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ]),
   );
 
-  Widget _heroProfile(BuildContext ctx, String identity, Map<String, dynamic> p) {
+  Widget _heroProfile(BuildContext ctx, String identity, Map<String, dynamic> p, bool isRefreshing) {
     final name = p['name'] as String? ?? 'Elite User';
     final city = p['city'] as String? ?? 'San Francisco, CA';
     
@@ -202,7 +202,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               imagePath: p['avatar_url'] as String?,
               gender: p['gender'] as String?,
             ),
-            if (profileAsync.isRefreshing)
+            if (isRefreshing)
               Container(
                 width: 90, height: 90,
                 decoration: BoxDecoration(

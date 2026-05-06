@@ -8,6 +8,7 @@ import 'points_provider.dart';
 import 'api_service.dart';
 import 'health_service.dart';
 import 'profile_stats_provider.dart';
+import 'notifications_provider.dart';
 
 final liveStepProvider = StreamProvider<int>((ref) {
   const events = EventChannel('com.fit24app/steps_stream');
