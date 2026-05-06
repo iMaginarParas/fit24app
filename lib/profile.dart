@@ -95,13 +95,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       backgroundColor: kBg,
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
-        error: (_, __) => _body(context, identity, {}),
-        data: (p) => _body(context, identity, p),
+        error: (_, __) => _body(context, identity, {}, false),
+        data: (p) => _body(context, identity, p, profileAsync.isRefreshing),
       ),
     );
   }
 
-  Widget _body(BuildContext ctx, String identity, Map<String, dynamic> p) {
+  Widget _body(BuildContext ctx, String identity, Map<String, dynamic> p, bool isRefreshing) {
     return RefreshIndicator(
       color: kTeal,
       backgroundColor: const Color(0xFF111111),
@@ -135,7 +135,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(child: _heroProfile(ctx, identity, p, profileAsync.isRefreshing)),
+            SliverToBoxAdapter(child: _heroProfile(ctx, identity, p, isRefreshing)),
             SliverToBoxAdapter(child: _achievementsSection()),
             SliverToBoxAdapter(child: _historyChart()),
             SliverToBoxAdapter(child: _statsGrid()),
