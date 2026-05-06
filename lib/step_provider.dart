@@ -64,6 +64,17 @@ final globalSyncProvider = Provider<void>((ref) {
   // 2. Periodic sync timer (every 5 minutes)
   final syncTimer = Timer.periodic(const Duration(minutes: 5), (_) => sync());
 
+  // 2.5 PASSIVE SYNC (Every 60s): Refresh points & notifications in real-time
+  // This ensures referral rewards show up even if the user isn't walking.
+  final passiveTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    ref.read(userPointsProvider.notifier).refresh();
+    // Also trigger notification refresh to catch new rewards/popups
+    try {
+      final notifier = ref.read(notificationsProvider.notifier);
+      notifier.refresh();
+    } catch (_) {}
+  });
+
   // 3. Health Connect sync timer (every 15 minutes)
   final healthTimer = Timer.periodic(const Duration(minutes: 15), (_) {
     HealthService.syncCurrentStats();
@@ -97,6 +108,7 @@ final globalSyncProvider = Provider<void>((ref) {
 
   ref.onDispose(() {
     syncTimer.cancel();
+    passiveTimer.cancel(); // Added
     healthTimer.cancel();
     offlineTimer.cancel();
     debounce?.cancel();
