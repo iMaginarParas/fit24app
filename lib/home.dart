@@ -116,24 +116,30 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
       
       if (lastSync != today) {
         // This is the first launch of the day.
+        bool success = false;
         try {
           await ref.read(apiServiceProvider).claimDailyCheckIn();
-        } catch (_) {
-          // Backend might not be updated yet or already claimed. Add locally as fallback.
-          ref.read(userPointsProvider.notifier).updateLocal(200);
+          success = true;
+        } catch (e) {
+          // If 400, it means already claimed on server but not recorded locally
+          if (e.toString().contains('400')) {
+            success = true;
+          }
         }
 
-        ref.read(notificationsProvider.notifier).addNotification(
-          title: 'Daily Show-up Bonus! ☀️',
-          message: "You earned 200 Fit24 points for opening the app today.",
-          points: '+200',
-          icon: Icons.wb_sunny_rounded,
-          color: kAmber,
-        );
-
-        // Refresh the global point balance to ensure everything is synced.
-        await ref.read(userPointsProvider.notifier).refresh();
-        await prefs.setString('last_daily_point_sync', today);
+        if (success) {
+          ref.read(notificationsProvider.notifier).addNotification(
+            title: 'Daily Show-up Bonus! ☀️',
+            message: "You earned 200 Fit24 points for opening the app today.",
+            points: '+200',
+            icon: Icons.wb_sunny_rounded,
+            color: kAmber,
+          );
+          
+          // Only refresh points AFTER a successful claim
+          await ref.read(userPointsProvider.notifier).refresh();
+          await prefs.setString('last_daily_point_sync', today);
+        }
       }
     } catch (_) {}
   }
