@@ -291,7 +291,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
     setState(() { _loading = true; _error = null; });
     try {
       final googleSignIn = GoogleSignIn(
-        serverClientId: '1047128597921-3rgdprug33ohokd3g8t478gi1ndpnaf1.apps.googleusercontent.com',
+        serverClientId: '268016745351-l2dddrhhjhrbc92iesp7g1fat07aautf.apps.googleusercontent.com',
         scopes: ['email', 'profile'],
       );
       final account = await googleSignIn.signIn();
@@ -433,7 +433,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
     child: Row(children: [const Icon(Icons.error_outline_rounded, color: kCoral, size: 18), const SizedBox(width: 10), Expanded(child: Text(_error!, style: const TextStyle(fontSize: 13, color: kCoral)))]),
   );
 
-  Widget _primaryBtn() => GreenBtn(_loading ? '...' : (_step == _Step.email ? 'Continue' : 'Verify'), onTap: _loading ? () {} : (_step == _Step.email ? _sendOtp : _verifyOtp));
+  Widget _primaryBtn() => GreenBtn(_loading ? '...' : (_step == _Step.email ? 'Send OTP' : 'Verify'), onTap: _loading ? () {} : (_step == _Step.email ? _sendOtp : _verifyOtp));
 
   Widget _googleBtn() => GestureDetector(
     onTap: _loading ? null : _signInWithGoogle,
@@ -441,9 +441,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
       width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(0.1))),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Image.network('https://www.image2url.com/r2/default/images/1776158261619-335c91e4-3d07-4277-a508-8f8319f39f37.png', height: 20),
+        Image.asset('assets/images/google_logo.png', height: 24),
         const SizedBox(width: 12),
-        const Text('Continue with Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        const Text('Sign in with Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ]),
     ),
   );

@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_service.dart';
 import 'shell.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ReferAndEarnPage extends ConsumerStatefulWidget {
   const ReferAndEarnPage({super.key});
@@ -206,13 +208,7 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
                       ),
                       
                       const SizedBox(height: 24),
-                      GreenBtn('Share with Friends', onTap: () {
-                        // TODO: Implement actual sharing via Share plugin if needed
-                        Clipboard.setData(ClipboardData(text: 'Join me on Fit24! Use my referral code: $_referralCode'));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Invite text copied!'), backgroundColor: kGreen, behavior: SnackBarBehavior.floating),
-                        );
-                      }),
+                      GreenBtn('Invite Friends', onTap: () => _showShareSheet(context)),
                       
                       const SizedBox(height: 48),
                       Row(
@@ -303,4 +299,143 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
       ),
     );
   }
+
+  void _showShareSheet(BuildContext context) {
+    final message = 'Join me on Fit24! Use my referral code: $_referralCode to get started. Download now: https://fit24.app';
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: const BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const Text('Sharing text', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.06)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(message, 
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, height: 1.5),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: message));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Invitation text copied!'), backgroundColor: kGreen, behavior: SnackBarBehavior.floating),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle),
+                      child: const Icon(Icons.copy_rounded, color: Colors.white70, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _SocialIcon(
+                  icon: Icons.chat_bubble_rounded, 
+                  label: 'WhatsApp', 
+                  color: const Color(0xFF25D366),
+                  onTap: () async {
+                    final url = 'https://wa.me/?text=${Uri.encodeComponent(message)}';
+                    if (await canLaunchUrl(Uri.parse(url))) {
+                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                    } else {
+                      Share.share(message);
+                    }
+                  }
+                ),
+                _SocialIcon(
+                  icon: Icons.camera_alt_rounded, 
+                  label: 'Instagram', 
+                  color: const Color(0xFFE4405F),
+                  onTap: () => Share.share(message)
+                ),
+                _SocialIcon(
+                  icon: Icons.telegram_rounded, 
+                  label: 'Telegram', 
+                  color: const Color(0xFF0088CC),
+                  onTap: () => Share.share(message)
+                ),
+                _SocialIcon(
+                  icon: Icons.sms_rounded, 
+                  label: 'SMS', 
+                  color: kAmber,
+                  onTap: () => Share.share(message)
+                ),
+                _SocialIcon(
+                  icon: Icons.more_horiz_rounded, 
+                  label: 'More', 
+                  color: Colors.white38,
+                  onTap: () => Share.share(message)
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+class _SocialIcon extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SocialIcon({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 56, height: 56,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.2)),
+            ),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+

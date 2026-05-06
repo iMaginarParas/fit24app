@@ -1,4 +1,4 @@
-package com.example.fit24app
+package com.fit24.user
 
 import android.app.*
 import android.content.Context
@@ -187,11 +187,6 @@ class StepCounterService : Service(), SensorEventListener {
             }
         }
         return START_STICKY  // Android restarts this if killed
-    }
-
-    override fun onDestroy() {
-        sensorManager.unregisterListener(this)
-        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

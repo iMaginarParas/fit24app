@@ -1,4 +1,4 @@
-package com.example.fit24app
+package com.fit24.user
 
 import android.content.BroadcastReceiver
 import android.content.Context

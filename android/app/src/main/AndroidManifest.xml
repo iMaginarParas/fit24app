@@ -101,8 +101,18 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
         <!-- Required to detect if Health Connect is installed -->
         <package android:name="com.google.android.apps.healthdata"/>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.instagram.android" />
     </queries>
 
 </manifest>

@@ -1,4 +1,4 @@
-package com.example.fit24app
+package com.fit24.user
 
 import android.Manifest
 import android.content.*

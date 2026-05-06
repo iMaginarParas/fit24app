@@ -124,7 +124,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
         }
 
         ref.read(notificationsProvider.notifier).addNotification(
-          title: 'Daily Check-in! 🎉',
+          title: 'Daily Show-up Bonus! ☀️',
           message: "You earned 200 Fit24 points for opening the app today.",
           points: '+200',
           icon: Icons.wb_sunny_rounded,
