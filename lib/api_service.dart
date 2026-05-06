@@ -256,6 +256,14 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  Future<void> markNotificationRead(String id) async {
+    final res = await _req((h) => http.post(
+      Uri.parse('$kBaseUrl/profile/notifications/$id/read'),
+      headers: h,
+    ));
+    if (res.statusCode != 200) throw Exception('Failed to mark notification as read');
+  }
+
   // ── Content ────────────────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCategories() async {

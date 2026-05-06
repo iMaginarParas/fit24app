@@ -99,7 +99,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     
     // Listen for new referral notifications to show popup
     ref.listen<List<NotificationItem>>(notificationsProvider, (prev, next) {
-      final unreadReferral = next.where((n) => !n.isRead && (n.icon == Icons.card_giftcard_rounded)).toList();
+      final unreadReferral = next.where((n) => !n.isRead && (n.type == 'referral')).toList();
       if (unreadReferral.isNotEmpty) {
         _showRewardPopup(unreadReferral.first);
       }
