@@ -129,7 +129,17 @@ class _SpinWheelPageState extends ConsumerState<SpinWheelPage> with SingleTicker
     _startCountdown();
 
     if (wonSlot.points > 0) {
+      // 1. Update UI locally for instant feedback
       ref.read(userPointsProvider.notifier).updateLocal(wonSlot.points);
+      
+      // 2. Sync with backend for permanent storage
+      try {
+        await ref.read(apiServiceProvider).recordSpinWin(wonSlot.points);
+      } catch (e) {
+        debugPrint('Failed to sync spin win: $e');
+      }
+
+      // 3. Add to notification center
       ref.read(notificationsProvider.notifier).addNotification(
         title: 'Lucky Spin! 🎡',
         message: 'You won ${wonSlot.points} FIT24 points from the daily spin.',

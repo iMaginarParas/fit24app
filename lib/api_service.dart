@@ -246,6 +246,16 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  Future<Map<String, dynamic>> recordSpinWin(int points) async {
+    final res = await _req((h) => http.post(
+      Uri.parse('$kBaseUrl/profile/spin-win'),
+      headers: h,
+      body: jsonEncode({'points': points}),
+    ));
+    if (res.statusCode != 200) throw Exception('Failed to record spin win');
+    return jsonDecode(res.body);
+  }
+
   // ── Content ────────────────────────────────────────────────────────────────
 
   Future<List<dynamic>> getCategories() async {
