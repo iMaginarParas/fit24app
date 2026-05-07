@@ -144,14 +144,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: _buildEarningsChart(trend)),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 2, child: _buildNetworkMap(levels)),
-                ],
-              ),
+              child: _buildEarningsChart(trend),
             ),
           ),
 
@@ -161,8 +154,8 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Level 1 (Direct)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('${levels.isNotEmpty ? (levels[0]['users'] as List).length : 0} Members', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
+                  const Text('Direct Referrals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text('${levels.isNotEmpty ? (levels[0]['users'] as List).length : 0} People', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -207,8 +200,13 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 12),
-              child: Text('Network Depth (Levels 2-10)', 
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.3), letterSpacing: 1)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Indirect Referrals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text('${summary['total_users'] - (levels.isNotEmpty ? (levels[0]['users'] as List).length : 0)} People', style: TextStyle(fontSize: 12, color: kBlue, fontWeight: FontWeight.w700)),
+                ],
+              ),
             ),
           ),
 
@@ -337,45 +335,45 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(child: _premiumStatCard('Total Referrals', summary['total_users'].toString(), kAmber, Icons.people_outline_rounded)),
-              const SizedBox(width: 16),
-              Expanded(child: _premiumStatCard('Network Points', fmt.format(totalPoints), kGreen, Icons.stars_rounded)),
-            ],
-          ),
+          _premiumStatCard('Total Network Members', summary['total_users'].toString(), kTeal, Icons.groups_rounded, isFullWidth: true),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _premiumStatCard('Direct (L1)', fmt.format(summary['direct_points']), kTeal, Icons.person_add_alt_1_rounded)),
+              Expanded(child: _premiumStatCard('Direct Referrals', fmt.format(summary['direct_points']), kAmber, Icons.person_add_alt_1_rounded)),
               const SizedBox(width: 16),
-              Expanded(child: _premiumStatCard('Indirect (L2-10)', fmt.format(summary['indirect_points']), kBlue, Icons.account_tree_rounded)),
+              Expanded(child: _premiumStatCard('Indirect Referrals', fmt.format(summary['indirect_points']), kBlue, Icons.account_tree_rounded)),
             ],
           ),
+          const SizedBox(height: 16),
+          _premiumStatCard('Total Network Points', fmt.format(totalPoints), kGreen, Icons.stars_rounded, isFullWidth: true),
         ],
       ),
     );
   }
 
-  Widget _premiumStatCard(String label, String value, Color color, IconData icon) => Container(
+  Widget _premiumStatCard(String label, String value, Color color, IconData icon, {bool isFullWidth = false}) => Container(
     padding: const EdgeInsets.all(20),
+    width: isFullWidth ? double.infinity : null,
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
       borderRadius: BorderRadius.circular(24),
       border: Border.all(color: Colors.white.withOpacity(0.05)),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    child: Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-          child: Icon(icon, color: color, size: 18),
+          child: Icon(icon, color: color, size: 24),
         ),
-        const SizedBox(height: 16),
-        Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.3))),
+        const SizedBox(width: 20),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.3))),
+          ],
+        ),
       ],
     ),
   );
@@ -410,74 +408,6 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     ),
   );
 
-  Widget _buildNetworkMap(List<dynamic> levels) => Container(
-    height: 220,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: const Color(0xFF13171D),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Colors.white.withOpacity(0.05)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Structure', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 20),
-        Expanded(child: _buildMapVisual(levels)),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Total Size', style: TextStyle(color: Colors.white24, fontSize: 10)),
-            Text('${_networkData!['summary']['total_users']}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
-          ],
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildMapVisual(List<dynamic> levels) {
-    int l1 = levels.isNotEmpty ? levels[0]['count'] : 0;
-    int l2 = levels.length > 1 ? levels[1]['count'] : 0;
-    int l3 = levels.length > 2 ? levels[2]['count'] : 0;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _mapNode('YOU', Colors.white, isMe: true),
-          _connector(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _mapNode('$l1', kAmber, sub: 'L1'),
-              _mapNode('$l2', kTeal, sub: 'L2'),
-              _mapNode('$l3', kBlue, sub: 'L3'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _mapNode(String label, Color color, {bool isMe = false, String? sub}) => Column(
-    children: [
-      Container(
-        width: isMe ? 40 : 34, height: isMe ? 40 : 34,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: color.withOpacity(isMe ? 1 : 0.4), width: 1.5),
-        ),
-        child: Center(child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900))),
-      ),
-      if (sub != null) ...[
-        const SizedBox(height: 4),
-        Text(sub, style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.w700)),
-      ]
-    ],
-  );
-
-  Widget _connector() => Container(width: 1.5, height: 20, color: Colors.white.withOpacity(0.05));
 
   Widget _buildReferralRow(Map<String, dynamic> user) {
     final name = user['name'] ?? 'Fit24 Athlete';
@@ -534,15 +464,15 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         children: [
           Container(
             width: 32, height: 32,
-            decoration: BoxDecoration(color: kTeal.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Center(child: Text('L$level', style: const TextStyle(color: kTeal, fontWeight: FontWeight.w900, fontSize: 11))),
+            decoration: BoxDecoration(color: kBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            child: const Center(child: Icon(Icons.hub_rounded, color: kBlue, size: 16)),
           ),
           const SizedBox(width: 12),
-          Text('Level $level Network', style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+          Text('Network Level $level', style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
           const Spacer(),
           Text('$count Users', style: const TextStyle(color: Colors.white38, fontSize: 12)),
           const SizedBox(width: 12),
-          Text('+${NumberFormat.compact().format(points)}', style: const TextStyle(color: kTeal, fontSize: 13, fontWeight: FontWeight.w800)),
+          Text('+\$${NumberFormat.compact().format(points)}', style: const TextStyle(color: kBlue, fontSize: 13, fontWeight: FontWeight.w800)),
         ],
       ),
     );
