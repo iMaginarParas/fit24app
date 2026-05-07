@@ -34,7 +34,7 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
       final data = await api.getNetwork();
       if (mounted) {
         setState(() {
-          _network = data;
+          _network = data['levels'] as List? ?? [];
           _isLoadingNetwork = false;
         });
       }
@@ -76,16 +76,15 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
   @override
   Widget build(BuildContext context) {
     final levels = [
-      {'level': 'Direct affiliate sponsor', 'points': '10,000', 'color': kAmber, 'icon': Icons.star_rounded},
-      {'level': 'Level 1', 'points': '1,000', 'color': kTeal, 'icon': Icons.people_rounded},
-      {'level': 'Level 2', 'points': '1,000', 'color': kTeal, 'icon': Icons.people_outline_rounded},
-      {'level': 'Level 3', 'points': '1,000', 'color': kBlue, 'icon': Icons.group_add_rounded},
-      {'level': 'Level 4', 'points': '1,000', 'color': kBlue, 'icon': Icons.group_rounded},
-      {'level': 'Level 5', 'points': '1,000', 'color': kPink, 'icon': Icons.share_rounded},
+      {'level': 'Level 1 (Direct)', 'points': '10,000', 'color': kAmber, 'icon': Icons.star_rounded},
+      {'level': 'Level 2', 'points': '1,000', 'color': kTeal, 'icon': Icons.people_rounded},
+      {'level': 'Level 3', 'points': '1,000', 'color': kTeal, 'icon': Icons.people_outline_rounded},
+      {'level': 'Level 4', 'points': '1,000', 'color': kBlue, 'icon': Icons.group_add_rounded},
+      {'level': 'Level 5', 'points': '1,000', 'color': kBlue, 'icon': Icons.group_rounded},
       {'level': 'Level 6', 'points': '1,000', 'color': kPink, 'icon': Icons.share_rounded},
-      {'level': 'Level 7', 'points': '1,000', 'color': kPurple, 'icon': Icons.connect_without_contact_rounded},
+      {'level': 'Level 7', 'points': '1,000', 'color': kPink, 'icon': Icons.share_rounded},
       {'level': 'Level 8', 'points': '1,000', 'color': kPurple, 'icon': Icons.connect_without_contact_rounded},
-      {'level': 'Level 9', 'points': '1,000', 'color': kGreen, 'icon': Icons.diversity_3_rounded},
+      {'level': 'Level 9', 'points': '1,000', 'color': kPurple, 'icon': Icons.connect_without_contact_rounded},
       {'level': 'Level 10', 'points': '1,000', 'color': kGreen, 'icon': Icons.diversity_3_rounded},
     ];
 

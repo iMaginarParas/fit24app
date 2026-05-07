@@ -162,14 +162,14 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ),
           ),
 
-          // Top Referrals (Level 1)
+          // Top Referrals (Level 1 - Direct)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Top Referrals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                  const Text('Level 1 (Direct)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
                   Text('View All', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
                 ],
               ),
