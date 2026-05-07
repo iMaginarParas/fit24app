@@ -189,6 +189,7 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
                   slivers: [
                     SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
                     SliverToBoxAdapter(child: _mainStepCard(liveSteps)),
+                    SliverToBoxAdapter(child: _buildActivityChart()),
                     SliverToBoxAdapter(child: SectionHeader('Activity Totals')),
                     SliverToBoxAdapter(child: _modeTotals()),
                     SliverToBoxAdapter(child: SectionHeader('Recent Sessions')),
@@ -524,6 +525,142 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
   String _titleOf(ActivityType t) => t == ActivityType.walking ? 'Walking Activity' : 
                                     t == ActivityType.running ? 'Running Activity' : 
                                     'Cycling Activity';
+
+  Widget _buildActivityChart() {
+    final Map<String, double> chartData = {};
+    final List<Map<String, dynamic>> trend = [];
+    
+    for (int i = 6; i >= 0; i--) {
+      final date = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i)));
+      chartData[date] = 0;
+    }
+
+    for (var s in _sessions) {
+      final dateStr = s['date'].toString().substring(0, 10);
+      if (chartData.containsKey(dateStr)) {
+        final type = ActivityType.values[(s['type'] as num).toInt()];
+        if (type == _selectedType) {
+          chartData[dateStr] = chartData[dateStr]! + (s['fit_points'] as num? ?? 0).toDouble();
+        }
+      }
+    }
+
+    chartData.forEach((date, points) {
+      trend.add({'date': date, 'points': points});
+    });
+    trend.sort((a, b) => a['date'].compareTo(b['date']));
+
+    final color = _selectedType == ActivityType.walking ? kTeal : 
+                  _selectedType == ActivityType.running ? kCoral : kAmber;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: kCard, borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: kBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${_selectedType?.name.toUpperCase()} PERFORMANCE', 
+                      style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                    const Text('Weekly Points Trend', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Text('7 DAYS', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              height: 120,
+              width: double.infinity,
+              child: CustomPaint(painter: _ActivityLinePainter(trend, color)),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: trend.map((e) => Text(DateFormat('E').format(DateTime.parse(e['date'])), 
+                style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 10, fontWeight: FontWeight.w700))).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityLinePainter extends CustomPainter {
+  final List<Map<String, dynamic>> trend;
+  final Color color;
+  _ActivityLinePainter(this.trend, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (trend.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [color.withOpacity(0.3), color.withOpacity(0)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    double maxPts = trend.map((e) => (e['points'] as num).toDouble()).fold(100.0, math.max);
+    
+    final List<Offset> points = [];
+    for (int i = 0; i < trend.length; i++) {
+      double x = (trend.length > 1) ? (size.width / (trend.length - 1)) * i : size.width / 2;
+      double val = (trend[i]['points'] as num).toDouble();
+      double y = size.height - (val / maxPts) * size.height * 0.8 - (size.height * 0.1);
+      points.add(Offset(x, y));
+    }
+
+    if (points.length > 1) {
+      final path = Path();
+      final fillPath = Path();
+
+      path.moveTo(points[0].dx, points[0].dy);
+      fillPath.moveTo(0, size.height);
+      fillPath.lineTo(points[0].dx, points[0].dy);
+
+      for (int i = 0; i < points.length - 1; i++) {
+        final p0 = points[i];
+        final p1 = points[i + 1];
+        final cp1 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p0.dy);
+        final cp2 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p1.dy);
+        path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p1.dx, p1.dy);
+        fillPath.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p1.dx, p1.dy);
+      }
+
+      fillPath.lineTo(size.width, size.height);
+      fillPath.close();
+
+      canvas.drawPath(fillPath, fillPaint);
+      canvas.drawPath(path, paint);
+      
+      canvas.drawCircle(points.last, 6, Paint()..color = color.withOpacity(0.2));
+      canvas.drawCircle(points.last, 3, Paint()..color = color);
+    }
+  }
+  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _MiniRing extends CustomPainter {
