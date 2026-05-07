@@ -379,7 +379,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
   }
 
   Widget _premiumStatCard(String label, String value, Color color, IconData icon, {bool isFullWidth = false, bool isGlow = false}) => Container(
-    padding: const EdgeInsets.all(24),
+    padding: EdgeInsets.all(isFullWidth ? 24 : 20),
     width: isFullWidth ? double.infinity : null,
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
@@ -390,29 +390,51 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10)),
       ],
     ),
-    child: Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08), 
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.12)),
-          ),
-          child: Icon(icon, color: color, size: 24),
+    child: isFullWidth 
+      ? Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.08), 
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: color.withOpacity(0.12)),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                  Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.25), letterSpacing: 0.2)),
+                ],
+              ),
+            ),
+          ],
+        )
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.08), 
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.12)),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 16),
+            Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+            const SizedBox(height: 2),
+            Text(label, 
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white.withOpacity(0.2), letterSpacing: 0.1)),
+          ],
         ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.25), letterSpacing: 0.2)),
-            ],
-          ),
-        ),
-      ],
-    ),
   );
 
   Widget _buildAnalyticsCard(List<dynamic> trend, double growthPct) => Container(
@@ -575,14 +597,31 @@ class _SmoothLineChartPainter extends CustomPainter {
     double maxPts = trend.map((e) => (e['points'] as num).toDouble()).fold(100.0, math.max);
     
     final List<Offset> points = [];
+    bool allZero = true;
     for (int i = 0; i < trend.length; i++) {
       double x = (trend.length > 1) ? (size.width / (trend.length - 1)) * i : size.width / 2;
       double val = (trend[i]['points'] as num).toDouble();
+      if (val > 0) allZero = false;
       double y = size.height - (val / maxPts) * size.height * 0.7 - (size.height * 0.15);
       points.add(Offset(x, y));
     }
 
-    if (points.length > 1) {
+    // Draw baseline if all zero
+    if (allZero) {
+      final baselinePaint = Paint()
+        ..color = Colors.white.withOpacity(0.05)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      canvas.drawLine(Offset(0, size.height * 0.85), Offset(size.width, size.height * 0.85), baselinePaint);
+      
+      // Draw a subtle placeholder curve
+      final placeholderPath = Path();
+      placeholderPath.moveTo(0, size.height * 0.85);
+      placeholderPath.quadraticBezierTo(size.width * 0.5, size.height * 0.8, size.width, size.height * 0.85);
+      canvas.drawPath(placeholderPath, Paint()..color = kAmber.withOpacity(0.1)..style = PaintingStyle.stroke..strokeWidth = 1);
+    }
+
+    if (points.length > 1 && !allZero) {
       path.moveTo(points[0].dx, points[0].dy);
       fillPath.moveTo(0, size.height);
       fillPath.lineTo(points[0].dx, points[0].dy);
