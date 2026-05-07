@@ -13,9 +13,8 @@ class ChallengesPage extends ConsumerStatefulWidget {
 
 class _ChallengesPageState extends ConsumerState<ChallengesPage> {
   bool _loading = true;
-  int _today = 0;
-  int _weekTotal = 0;
-  int _monthTotal = 0;
+  int _todaySteps = 0;
+  List<dynamic> _challenges = [];
 
   @override
   void initState() {
@@ -24,17 +23,16 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final api = ref.read(apiServiceProvider);
       final t = await api.getTodaySteps();
-      final h = await api.getStepHistory(days: 30);
+      final c = await api.getChallenges();
       if (mounted) {
         setState(() {
-          _today = t['steps'] ?? 0;
-          _weekTotal = h['total_steps'] ?? 0; // History returns sum for requested days
-          // Month total calculation from history days
-          _monthTotal = h['total_steps'] ?? 0;
+          _todaySteps = t['steps'] ?? 0;
+          _challenges = c;
           _loading = false;
         });
       }
@@ -58,37 +56,78 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> {
           Positioned.fill(
             child: Container(color: Colors.black.withOpacity(0.7)),
           ),
-          CustomScrollView(
-            physics: const ClampingScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
-              if (_loading)
-                const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: kGreen)))
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _section('Daily Challenges'),
-                      _challengeCard('10K Step Sprint', 'Reach 10,000 steps today', _today, 10000, kGreen, Icons.directions_run_rounded),
-                      _challengeCard('Early Bird', 'Walk 2,000 steps before noon', _today, 2000, kAmber, Icons.wb_sunny_rounded),
-                      
-                      const SizedBox(height: 24),
-                      _section('Weekly Challenges'),
-                      _challengeCard('70K Weekly Warrior', 'Accumulate 70,000 steps this week', _weekTotal, 70000, kPurple, Icons.emoji_events_rounded),
-                      _challengeCard('Consistent Mover', 'Sync steps for 5 consecutive days', 4, 5, kBlue, Icons.repeat_rounded),
-                      
-                      const SizedBox(height: 24),
-                      _section('Monthly Goals'),
-                      _challengeCard('300K Master', 'Hit 300,000 steps this month', _monthTotal, 300000, kCoral, Icons.workspace_premium_rounded),
-                    ]),
+          RefreshIndicator(
+            onRefresh: _loadData,
+            color: kGreen,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(child: SafeArea(bottom: false, child: _header())),
+                if (_loading)
+                  const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: kGreen)))
+                else if (_challenges.isEmpty)
+                  const SliverFillRemaining(child: Center(child: Text('No active challenges', style: TextStyle(color: Colors.white38))))
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (ctx, i) {
+                          final c = _challenges[i];
+                          final id = c['id'] as String;
+                          final isClaimed = c['is_claimed'] == true;
+                          double prog = 0;
+                          
+                          if (c['requirement_type'] == 'steps') {
+                            prog = (_todaySteps / (c['requirement_value'] as num)).clamp(0.0, 1.0);
+                          } else if (c['requirement_type'] == 'checkin') {
+                            prog = 1.0;
+                          }
+
+                          return _challengeCard(
+                            id,
+                            c['title'], 
+                            c['description'], 
+                            isClaimed ? _todaySteps : _todaySteps, // Just for display
+                            c['requirement_value'] ?? 0, 
+                            isClaimed ? Colors.white24 : (prog >= 1.0 ? kGreen : kAmber), 
+                            c['requirement_type'] == 'checkin' ? Icons.wb_sunny_rounded : Icons.directions_run_rounded,
+                            isClaimed: isClaimed,
+                            onClaim: (prog >= 1.0 && !isClaimed) ? () => _claim(id) : null,
+                          );
+                        },
+                        childCount: _challenges.length,
+                      ),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _claim(String id) async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      Map<String, dynamic> res;
+      if (id == "00000000-0000-0000-0000-000000000001") {
+        res = await api.claimDailyCheckIn();
+      } else {
+        res = await api.claimChallenge(id);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message'] ?? 'Reward claimed!'),
+          backgroundColor: kGreen,
+          behavior: SnackBarBehavior.floating,
+        ));
+        _loadData();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   Widget _header() => Padding(
@@ -111,58 +150,66 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> {
     ]),
   );
 
-  Widget _section(String title) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: Text(title, style: TextStyle(
-        fontSize: 14, color: Colors.white.withOpacity(0.4),
-        letterSpacing: 1.5, fontWeight: FontWeight.w700)),
-  );
-
-  Widget _challengeCard(String title, String desc, int current, int target, Color color, IconData icon) {
+  Widget _challengeCard(String id, String title, String desc, int current, int target, Color color, IconData icon, {bool isClaimed = false, VoidCallback? onClaim}) {
     final prog = (current / target).clamp(0.0, 1.0);
-    final done = prog >= 1.0;
+    final isDone = prog >= 1.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: kCard, borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: done ? color.withOpacity(0.4) : kBorder),
+        border: Border.all(color: isClaimed ? Colors.white10 : (isDone ? color.withOpacity(0.4) : kBorder)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: color.withOpacity(0.3)),
+              color: isClaimed ? Colors.white.withOpacity(0.05) : color.withOpacity(0.12), 
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: isClaimed ? Colors.white10 : color.withOpacity(0.3)),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: isClaimed ? Colors.white24 : color, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-            Text(desc, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: isClaimed ? Colors.white38 : Colors.white)),
+            Text(desc, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(isClaimed ? 0.15 : 0.35))),
           ])),
-          if (done) const Icon(Icons.check_circle_rounded, color: kGreen, size: 24),
+          if (isClaimed) 
+            const Icon(Icons.check_circle_rounded, color: Colors.white24, size: 24)
+          else if (onClaim != null)
+            GestureDetector(
+              onTap: onClaim,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: kGreen, borderRadius: BorderRadius.circular(8)),
+                child: const Text('CLAIM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black)),
+              ),
+            )
+          else if (isDone)
+            const Icon(Icons.check_circle_rounded, color: kGreen, size: 24),
         ]),
         const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${NumberFormat('#,###').format(current)} / ${NumberFormat('#,###').format(target)}',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
-          Text('${(prog * 100).toInt()}%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
-        ]),
-        const SizedBox(height: 8),
-        ClipRRect(borderRadius: BorderRadius.circular(100),
-          child: Stack(children: [
-            Container(height: 8, color: Colors.white.withOpacity(0.05)),
-            FractionallySizedBox(widthFactor: prog,
-              child: Container(height: 8, decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color.withOpacity(0.6), color]),
-                borderRadius: BorderRadius.circular(100),
-                boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 8)],
-              ))),
-          ])),
+        if (!isClaimed) ...[
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('${NumberFormat('#,###').format(current)} / ${NumberFormat('#,###').format(target)}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+            Text('${(prog * 100).toInt()}%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(borderRadius: BorderRadius.circular(100),
+            child: Stack(children: [
+              Container(height: 8, color: Colors.white.withOpacity(0.05)),
+              FractionallySizedBox(widthFactor: prog,
+                child: Container(height: 8, decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [color.withOpacity(0.6), color]),
+                  borderRadius: BorderRadius.circular(100),
+                  boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 8)],
+                ))),
+            ])),
+        ],
       ]),
     );
   }

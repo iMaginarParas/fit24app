@@ -430,23 +430,29 @@ class _EP extends ConsumerState<EarnPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(children: _challenges.map((c) {
+        final id = c['id'] as String;
+        final isClaimed = c['is_claimed'] == true;
+        
         double prog = 0;
         if (c['requirement_type'] == 'steps') {
           prog = (currentSteps / (c['requirement_value'] as num)).clamp(0.0, 1.0);
+        } else if (c['requirement_type'] == 'checkin') {
+          prog = 1.0; // Always met for check-in
         }
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: _challengeCard(
-            c['id'],
+            id,
             c['title'], 
             c['description'],
-            prog, 
-            '+${c['reward_coins']} pts', 
-            kGreen, 
-            Icons.directions_run_rounded, 
-            'Active',
-            onClaim: prog >= 1.0 ? () => _claim(c['id']) : null,
+            isClaimed ? 1.0 : prog, 
+            isClaimed ? 'CLAIMED' : '+${c['reward_coins']} pts', 
+            isClaimed ? Colors.white24 : (prog >= 1.0 ? kGreen : kAmber), 
+            c['requirement_type'] == 'checkin' ? Icons.wb_sunny_rounded : Icons.directions_run_rounded, 
+            isClaimed ? 'Completed' : (prog >= 1.0 ? 'Ready to Claim' : 'Active'),
+            onClaim: (prog >= 1.0 && !isClaimed) ? () => _claim(id) : null,
+            isClaimed: isClaimed,
           ),
         );
       }).toList()),
@@ -455,28 +461,42 @@ class _EP extends ConsumerState<EarnPage> {
 
   Future<void> _claim(String id) async {
     try {
-      final res = await ref.read(apiServiceProvider).claimChallenge(id);
+      final api = ref.read(apiServiceProvider);
+      Map<String, dynamic> res;
+      
+      // Special handle for daily check-in ID
+      if (id == "00000000-0000-0000-0000-000000000001") {
+        res = await api.claimDailyCheckIn();
+      } else {
+        res = await api.claimChallenge(id);
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(res['message'] ?? 'Reward claimed!'),
           backgroundColor: kGreen,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
         _loadData();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: kCoral,
+        ));
       }
     }
   }
 
   Widget _challengeCard(String id, String title, String desc, double prog,
-      String reward, Color color, IconData icon, String timeLeft, {VoidCallback? onClaim}) =>
+      String reward, Color color, IconData icon, String timeLeft, {VoidCallback? onClaim, bool isClaimed = false}) =>
     Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: kCard, borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: isClaimed ? Colors.white.withOpacity(0.05) : color.withOpacity(0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -484,18 +504,18 @@ class _EP extends ConsumerState<EarnPage> {
             width: 44, height: 44,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              color: color.withOpacity(0.12),
-              border: Border.all(color: color.withOpacity(0.3)),
+              color: isClaimed ? Colors.white.withOpacity(0.05) : color.withOpacity(0.12),
+              border: Border.all(color: isClaimed ? Colors.white10 : color.withOpacity(0.3)),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: isClaimed ? Colors.white24 : color, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+            Text(title, style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700, color: isClaimed ? Colors.white38 : Colors.white)),
             const SizedBox(height: 2),
             Text(desc, style: TextStyle(
-                fontSize: 11, color: Colors.white.withOpacity(0.35))),
+                fontSize: 11, color: Colors.white.withOpacity(isClaimed ? 0.15 : 0.35))),
           ])),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -508,10 +528,10 @@ class _EP extends ConsumerState<EarnPage> {
               Chip24(reward, color: color),
             const SizedBox(height: 5),
             Text(timeLeft, style: TextStyle(
-                fontSize: 10, color: Colors.white.withOpacity(0.3))),
+                fontSize: 10, color: Colors.white.withOpacity(isClaimed ? 0.15 : 0.3))),
           ]),
         ]),
-        if (prog > 0) ...[
+        if (prog > 0 && !isClaimed) ...[
           const SizedBox(height: 12),
           ClipRRect(borderRadius: BorderRadius.circular(100),
             child: Stack(children: [
