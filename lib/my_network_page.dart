@@ -114,10 +114,15 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     
     // Calculate growth percentage if possible
     double growthPct = 0;
+    bool isNewGrowth = false;
     if (trend.length >= 2) {
       double last = (trend.last['points'] as num).toDouble();
       double prev = (trend[trend.length - 2]['points'] as num).toDouble();
-      if (prev > 0) growthPct = ((last - prev) / prev) * 100;
+      if (prev > 0) {
+        growthPct = ((last - prev) / prev) * 100;
+      } else if (last > 0) {
+        isNewGrowth = true;
+      }
     }
 
     return RefreshIndicator(
@@ -155,7 +160,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildAnalyticsCard(trend, growthPct),
+              child: _buildAnalyticsCard(trend, growthPct, isNewGrowth),
             ),
           ),
 
@@ -437,7 +442,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         ),
   );
 
-  Widget _buildAnalyticsCard(List<dynamic> trend, double growthPct) => Container(
+  Widget _buildAnalyticsCard(List<dynamic> trend, double growthPct, bool isNewGrowth) => Container(
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
@@ -461,20 +466,20 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
                 Text('Real-time earnings trend', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
-            if (growthPct != 0)
+            if (growthPct != 0 || isNewGrowth)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: growthPct > 0 ? kGreen.withOpacity(0.1) : kCoral.withOpacity(0.1),
+                  color: (growthPct > 0 || isNewGrowth) ? kGreen.withOpacity(0.1) : kCoral.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Icon(growthPct > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, 
-                      color: growthPct > 0 ? kGreen : kCoral, size: 14),
+                    Icon(isNewGrowth || growthPct > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, 
+                      color: (isNewGrowth || growthPct > 0) ? kGreen : kCoral, size: 14),
                     const SizedBox(width: 4),
-                    Text('${growthPct.abs().toStringAsFixed(1)}%', 
-                      style: TextStyle(color: growthPct > 0 ? kGreen : kCoral, fontSize: 12, fontWeight: FontWeight.w900)),
+                    Text(isNewGrowth ? 'NEW GROWTH' : '${growthPct.abs().toStringAsFixed(1)}%', 
+                      style: TextStyle(color: (isNewGrowth || growthPct > 0) ? kGreen : kCoral, fontSize: 11, fontWeight: FontWeight.w900)),
                   ],
                 ),
               ),
@@ -641,10 +646,15 @@ class _SmoothLineChartPainter extends CustomPainter {
       canvas.drawPath(fillPath, fillPaint);
       canvas.drawPath(path, paint);
       
+      // Draw all data points with dots
+      for (var p in points) {
+        canvas.drawCircle(p, 3, Paint()..color = kAmber);
+      }
+
       // Draw end point glow
       canvas.drawCircle(points.last, 6, Paint()..color = kAmber.withOpacity(0.3));
-      canvas.drawCircle(points.last, 3, Paint()..color = kAmber);
-    } else if (points.length == 1) {
+      canvas.drawCircle(points.last, 3.5, Paint()..color = kAmber);
+    } else if (points.length == 1 && !allZero) {
       canvas.drawCircle(points[0], 4, paint);
     }
   }
