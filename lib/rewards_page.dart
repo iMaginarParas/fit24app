@@ -101,11 +101,13 @@ class RewardsPage extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
-          child: Center(child: Text('Redeem', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color))),
+          child: const Center(
+            child: Text('Coming Soon', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white24, letterSpacing: 0.5))
+          ),
         ),
       ]),
     );
