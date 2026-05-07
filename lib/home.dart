@@ -536,7 +536,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
         ),
         child: Row(children: [
-          Text(NumberFormat.compact().format(pts),
+          Text('\$${NumberFormat.compact().format(pts)}',
               style: const TextStyle(
                   fontSize: 14, color: Colors.white, fontWeight: FontWeight.w900)),
           const SizedBox(width: 5),
@@ -994,7 +994,7 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Fit24', style: TextStyle(
                   fontSize: 12, color: Colors.white.withOpacity(0.7))),
-              Text(NumberFormat('#,###').format(pts),
+              Text('\$${NumberFormat('#,###').format(pts)}',
                   style: const TextStyle(
                       fontSize: 28, fontWeight: FontWeight.w900,
                       color: Colors.white, letterSpacing: -1)),

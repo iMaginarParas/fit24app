@@ -197,7 +197,7 @@ class _EP extends ConsumerState<EarnPage> {
                Text('FIT24', style: TextStyle(
                   fontSize: 10, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 2, fontWeight: FontWeight.w700)),
-              Text(NumberFormat('#,###').format(points), style: const TextStyle(
+              Text('\$${NumberFormat('#,###').format(points)}', style: const TextStyle(
                   fontSize: 36, fontWeight: FontWeight.w900,
                   color: Colors.white, letterSpacing: -1.5, height: 1.1)),
             ]),
