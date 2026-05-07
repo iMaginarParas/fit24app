@@ -169,18 +169,38 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
 
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final l1 = levels.isNotEmpty ? levels[0] : null;
-                  if (l1 == null) return null;
-                  final users = l1['users'] as List;
-                  if (index >= users.length) return null;
-                  return _buildReferralRow(users[index]);
-                },
-                childCount: levels.isNotEmpty ? (levels[0]['users'] as List).length : 0,
-              ),
-            ),
+            sliver: levels.isNotEmpty && (levels[0]['users'] as List).isNotEmpty 
+              ? SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final users = levels[0]['users'] as List;
+                      if (index >= users.length) return null;
+                      return _buildReferralRow(users[index]);
+                    },
+                    childCount: (levels[0]['users'] as List).length,
+                  ),
+                )
+              : SliverToBoxAdapter(
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withOpacity(0.03)),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.group_add_rounded, color: Colors.white.withOpacity(0.1), size: 48),
+                        const SizedBox(height: 16),
+                        const Text('No Referrals Yet', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        Text('Start sharing your code to see your network grow here.', 
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
           ),
 
           SliverToBoxAdapter(
