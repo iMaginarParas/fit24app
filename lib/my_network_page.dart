@@ -111,15 +111,23 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     final summary = _networkData!['summary'];
     final levels = _networkData!['levels'] as List;
     final trend = summary['earnings_trend'] as List? ?? [];
+    
+    // Calculate growth percentage if possible
+    double growthPct = 0;
+    if (trend.length >= 2) {
+      double last = (trend.last['points'] as num).toDouble();
+      double prev = (trend[trend.length - 2]['points'] as num).toDouble();
+      if (prev > 0) growthPct = ((last - prev) / prev) * 100;
+    }
 
     return RefreshIndicator(
       onRefresh: _fetchNetwork,
-      color: kTeal,
-      backgroundColor: const Color(0xFF13171D),
+      color: kGreen,
+      backgroundColor: const Color(0xFF0B0E11),
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+          const SliverToBoxAdapter(child: SizedBox(height: 90)),
           
           SliverToBoxAdapter(
             child: Padding(
@@ -128,26 +136,26 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('My Network', 
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
-                  const SizedBox(height: 8),
-                  Text('Manage your direct and indirect team growth.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14, fontWeight: FontWeight.w500)),
+                    style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1.2)),
+                  const SizedBox(height: 6),
+                  Text('Track your direct and indirect team performance.',
+                    style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 14, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
           ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
           SliverToBoxAdapter(child: _buildReferralSection()),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
           SliverToBoxAdapter(child: _buildStatsGrid(summary)),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildEarningsChart(trend),
+              child: _buildAnalyticsCard(trend, growthPct),
             ),
           ),
 
@@ -283,49 +291,63 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
   );
 
   Widget _buildReferralSection() => Padding(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.symmetric(horizontal: 24),
     child: Row(
       children: [
         Expanded(
+          flex: 4,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
               color: const Color(0xFF13171D),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.04)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 5)),
+              ],
             ),
             child: Row(
               children: [
-                Text('Code: ', style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(_referralCode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
+                Text('CODE: ', style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                Text(_referralCode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: _referralCode.toUpperCase()));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard!'), behavior: SnackBarBehavior.floating));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Copied to clipboard!'), 
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: Color(0xFF1C2128),
+                    ));
                   },
-                  child: const Icon(Icons.copy_rounded, color: kTeal, size: 18),
+                  child: Icon(Icons.copy_rounded, color: kGreen.withOpacity(0.7), size: 18),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(width: 16),
-        GestureDetector(
-          onTap: _shareInvite,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: kGreenGrad,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.share_rounded, color: Colors.black, size: 18),
-                SizedBox(width: 8),
-                Text('Invite Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
-              ],
+        const SizedBox(width: 14),
+        Expanded(
+          flex: 3,
+          child: GestureDetector(
+            onTap: _shareInvite,
+            child: Container(
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: kGreenGrad,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: kGreen.withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8)),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.share_rounded, color: Colors.black, size: 18),
+                  SizedBox(width: 8),
+                  Text('Invite', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
+                ],
+              ),
             ),
           ),
         ),
@@ -340,7 +362,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          _premiumStatCard('Total Network Members', summary['total_users'].toString(), kTeal, Icons.groups_rounded, isFullWidth: true),
+          _premiumStatCard('Total Network Members', summary['total_users'].toString(), kGreen, Icons.groups_rounded, isFullWidth: true),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -350,64 +372,105 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _premiumStatCard('Total Network Points', fmt.format(totalPoints), kGreen, Icons.stars_rounded, isFullWidth: true),
+          _premiumStatCard('Total Network Points', fmt.format(totalPoints), kGreen, Icons.stars_rounded, isFullWidth: true, isGlow: true),
         ],
       ),
     );
   }
 
-  Widget _premiumStatCard(String label, String value, Color color, IconData icon, {bool isFullWidth = false}) => Container(
-    padding: const EdgeInsets.all(20),
+  Widget _premiumStatCard(String label, String value, Color color, IconData icon, {bool isFullWidth = false, bool isGlow = false}) => Container(
+    padding: const EdgeInsets.all(24),
     width: isFullWidth ? double.infinity : null,
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Colors.white.withOpacity(0.05)),
+      borderRadius: BorderRadius.circular(28),
+      border: Border.all(color: Colors.white.withOpacity(0.04)),
+      boxShadow: [
+        if (isGlow) BoxShadow(color: color.withOpacity(0.05), blurRadius: 40, spreadRadius: -10),
+        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10)),
+      ],
     ),
     child: Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08), 
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.12)),
+          ),
           child: Icon(icon, color: color, size: 24),
         ),
         const SizedBox(width: 20),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
-            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.3))),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.25), letterSpacing: 0.2)),
+            ],
+          ),
         ),
       ],
     ),
   );
 
-  Widget _buildEarningsChart(List<dynamic> trend) => Container(
-    height: 220,
-    padding: const EdgeInsets.all(20),
+  Widget _buildAnalyticsCard(List<dynamic> trend, double growthPct) => Container(
+    padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Colors.white.withOpacity(0.05)),
+      borderRadius: BorderRadius.circular(32),
+      border: Border.all(color: Colors.white.withOpacity(0.04)),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 15)),
+      ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Growth Trend', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
-        const Text('Daily referral points (Last 7 days)', style: TextStyle(color: Colors.white24, fontSize: 10)),
-        const Spacer(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Growth Analytics', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Real-time earnings trend', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12, fontWeight: FontWeight.w500)),
+              ],
+            ),
+            if (growthPct != 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: growthPct > 0 ? kGreen.withOpacity(0.1) : kCoral.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(growthPct > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, 
+                      color: growthPct > 0 ? kGreen : kCoral, size: 14),
+                    const SizedBox(width: 4),
+                    Text('${growthPct.abs().toStringAsFixed(1)}%', 
+                      style: TextStyle(color: growthPct > 0 ? kGreen : kCoral, fontSize: 12, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 32),
         SizedBox(
-          height: 100,
+          height: 120,
           width: double.infinity,
           child: CustomPaint(painter: _SmoothLineChartPainter(trend)),
         ),
-        const Spacer(),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: trend.isNotEmpty 
-            ? trend.map((e) => Text(DateFormat('d MMM').format(DateTime.parse(e['date'])), style: TextStyle(color: Colors.white24, fontSize: 8))).toList()
-            : [Text('No data', style: TextStyle(color: Colors.white24, fontSize: 8))],
+            ? trend.map((e) => Text(DateFormat('E').format(DateTime.parse(e['date'])), 
+                style: TextStyle(color: Colors.white.withOpacity(0.15), fontSize: 10, fontWeight: FontWeight.w800))).toList()
+            : [Text('No data', style: TextStyle(color: Colors.white24, fontSize: 10))],
         ),
       ],
     ),
