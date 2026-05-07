@@ -458,14 +458,14 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Growth Analytics', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
-                Text('Real-time earnings trend', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12, fontWeight: FontWeight.w500)),
-              ],
-            ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Growth Analytics', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('Network activity trend', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12, fontWeight: FontWeight.w500)),
+                  ],
+                ),
             if (growthPct != 0 || isNewGrowth)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
