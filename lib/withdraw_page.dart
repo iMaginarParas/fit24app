@@ -273,23 +273,18 @@ class _WithdrawPageState extends ConsumerState<WithdrawPage> {
   }
 
   Widget _withdrawButton(int userPoints, int inputPoints) {
-    final isValid = inputPoints >= 5000 && inputPoints <= userPoints;
-    return GestureDetector(
-      onTap: isValid ? _withdraw : null,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          gradient: isValid ? LinearGradient(colors: [kGreen, kTeal]) : null,
-          color: isValid ? null : kCard,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: isValid ? [BoxShadow(color: kGreen.withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 8))] : [],
-        ),
-        child: Center(
-          child: Text('Confirm Withdrawal', style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w900,
-              color: isValid ? Colors.black : Colors.white.withOpacity(0.3))),
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Center(
+        child: Text('COMING SOON', style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.w900,
+            color: Colors.white.withOpacity(0.3), letterSpacing: 1.5)),
       ),
     );
   }
