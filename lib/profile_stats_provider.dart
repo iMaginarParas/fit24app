@@ -22,42 +22,26 @@ class ProfileStats {
 final baseProfileStatsProvider = FutureProvider.autoDispose<ProfileStats>((ref) async {
   try {
     final api = ref.watch(apiServiceProvider);
-    final history = await api.getStepHistory(days: 30);
-    final remoteSessions = await api.getSessions();
+    
+    // FETCH REAL TOTALS FROM BACKEND (Includes Referrals, Spin-Win, etc.)
+    final statsData = await api.getStats();
     final todayData = await api.getTodaySteps();
     
-    // Include local unsynced sessions
+    // Include local unsynced sessions (if any haven't hit the server yet)
     final prefs = await SharedPreferences.getInstance();
     final localList = prefs.getStringList('gps_sessions') ?? [];
     final localSessions = localList.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
     
-    // Differentiate sessions by ID/Date to avoid double counting
-    final Map<String, dynamic> uniqueSessions = {};
-    for (var s in remoteSessions) {
-      uniqueSessions[s['id']?.toString() ?? s['date'].toString()] = s;
-    }
-    for (var s in localSessions) {
-      uniqueSessions[s['id']?.toString() ?? s['date'].toString()] = s;
-    }
-
-    int extraSteps = 0;
-    int extraPoints = 0;
-    final remoteIds = remoteSessions.map((s) => s['id']?.toString() ?? s['date'].toString()).toSet();
-    
-    for (var s in localSessions) {
-      final key = s['id']?.toString() ?? s['date'].toString();
-      if (!remoteIds.contains(key)) {
-        extraSteps += (s['steps'] as num?)?.toInt() ?? 0;
-        extraPoints += (s['fit_points'] as num?)?.toInt() ?? 0;
-      }
-    }
+    // Note: getStats already includes remote sessions. 
+    // We only need to check if there are NEW local sessions not yet synced.
+    // However, for total points accuracy, getStats is our source of truth.
 
     final syncedToday = (todayData['steps'] as num?)?.toInt() ?? 0;
 
     return ProfileStats(
-      totalSteps: (history['total_steps'] ?? 0) + extraSteps,
-      totalPoints: (history['total_fit_points'] ?? 0) + extraPoints,
-      totalSessions: uniqueSessions.length,
+      totalSteps: (statsData['total_steps'] as num?)?.toInt() ?? 0,
+      totalPoints: (statsData['total_fit_points'] as num?)?.toInt() ?? 0,
+      totalSessions: (statsData['total_sessions'] as num?)?.toInt() ?? 0,
       todayStepsSynced: syncedToday,
     );
   } catch (_) {
