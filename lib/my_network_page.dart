@@ -265,7 +265,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13, height: 1.5)),
         const SizedBox(height: 24),
         GestureDetector(
-          onTap: () => Navigator.pop(context),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReferAndEarnPage())),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),

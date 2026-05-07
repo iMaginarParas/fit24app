@@ -286,9 +286,7 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _network.length > index 
-                                      ? (_network[index]['name'] ?? 'Friend') 
-                                      : item['level'] as String, 
+                                    item['level'] as String, 
                                     style: TextStyle(
                                       fontSize: isTop ? 15 : 13, 
                                       fontWeight: isTop ? FontWeight.w900 : FontWeight.w700, 
@@ -298,8 +296,8 @@ class _ReferAndEarnPageState extends ConsumerState<ReferAndEarnPage> {
                                   const SizedBox(height: 2),
                                   Text(
                                     _network.length > index 
-                                      ? 'Successfully Referred 🎉' 
-                                      : (isTop ? 'Primary referral bonus' : 'Unlock by inviting a friend'), 
+                                      ? 'Level Unlocked 🎉' 
+                                      : (isTop ? 'Primary referral bonus' : 'Unlock by growing your network'), 
                                     style: TextStyle(
                                       fontSize: 10, 
                                       color: _network.length > index ? kGreen.withOpacity(0.6) : Colors.white.withOpacity(0.4)
