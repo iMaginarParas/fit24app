@@ -19,6 +19,7 @@ import 'notifications_settings_page.dart';
 import 'help_center_page.dart';
 import 'health_connect_settings_page.dart';
 import 'refer_and_earn_page.dart';
+import 'my_network_page.dart';
 
 // API base (managed by ApiService)
 
@@ -144,6 +145,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 () => _openEditSheet(ctx, p)),
               _settingTile(Icons.card_giftcard_rounded, kAmber, 'Refer & Earn', 'Invite friends and earn points', 
                 () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const ReferAndEarnPage()))),
+              _settingTile(Icons.account_tree_rounded, kBlue, 'My Network', 'See your multi-level earnings', 
+                () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const MyNetworkPage()))),
               _settingTile(Icons.lock_outline_rounded, kPurple, 'Privacy & Security', '', 
                 () => _showPlaceholder(ctx, 'Privacy Policy')),
             ])),

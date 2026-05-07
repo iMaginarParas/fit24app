@@ -237,7 +237,7 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
-  Future<List<dynamic>> getNetwork() async {
+  Future<Map<String, dynamic>> getNetwork() async {
     final res = await _req((h) => http.get(
       Uri.parse('$kBaseUrl/profile/me/network'),
       headers: h,
