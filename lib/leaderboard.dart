@@ -221,7 +221,12 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
             boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 25, spreadRadius: 2)],
           ),
         ),
-        AvatarCircle(initials, color, size: isFirst ? 80 : 65),
+        AvatarCircle(
+          e['name']?.substring(0, 1).toUpperCase() ?? 'U', 
+          color, 
+          size: isFirst ? 80 : 65,
+          imagePath: e['avatar_url'],
+        ),
         Positioned(bottom: 0, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
@@ -281,11 +286,16 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
             ),
             child: Row(children: [
               SizedBox(width: 32, child: Text('$rank', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isMe ? kGreen : Colors.white.withOpacity(0.2)))),
-              AvatarCircle(initials, isMe ? kGreen : kTeal, size: 44),
+              AvatarCircle(
+                e['name']?.substring(0, 1).toUpperCase() ?? 'U', 
+                isMe ? kGreen : kTeal, 
+                size: 44,
+                imagePath: e['avatar_url'],
+              ),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(isMe ? 'You' : 'Elite Athlete', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-                Text('${NumberFormat('#,###').format(steps)} steps', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w500)),
+                Text(isMe ? 'You' : (e['name'] ?? 'Elite Athlete'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('${e['city'] ?? 'Active Member'} • ${NumberFormat('#,###').format(steps)} steps', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w500)),
               ])),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
