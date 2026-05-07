@@ -171,13 +171,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
 
-  Widget _topHeader(BuildContext ctx, Map<String, dynamic> p) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+  Widget _topHeader(BuildContext ctx, Map<String, dynamic> p) => const Padding(
+    padding: EdgeInsets.fromLTRB(24, 10, 24, 10),
     child: Row(children: [
-      const Text('My Profile', style: TextStyle(
+      Text('My Profile', style: TextStyle(
           fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-      const Spacer(),
-      _circleBtn(Icons.edit_note_rounded, () => _openEditSheet(ctx, p)),
     ]),
   );
 

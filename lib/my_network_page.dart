@@ -205,11 +205,58 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ),
           ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildStrategyCard(context),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
   }
+
+  Widget _buildStrategyCard(BuildContext context) => Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [kTeal.withOpacity(0.15), kBlue.withOpacity(0.05)],
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(28),
+      border: Border.all(color: kTeal.withOpacity(0.2)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.lightbulb_outline_rounded, color: kTeal, size: 20),
+            SizedBox(width: 10),
+            Text('Pro Growth Tip', style: TextStyle(color: kTeal, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Text('Build a Deep Network', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Text('While Level 1 earns you 10,000 points instantly, your true wealth comes from depth. Help your Level 1 referrals invite others to unlock recurring points from Level 2-10.',
+          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13, height: 1.5)),
+        const SizedBox(height: 24),
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            child: const Center(
+              child: Text('Get More Referrals', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 13)),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildReferralSection() => Padding(
     padding: const EdgeInsets.all(24),
