@@ -509,38 +509,42 @@ class _SmoothLineChartPainter extends CustomPainter {
     final fillPath = Path();
 
     // Map trend to points
-    double maxPts = trend.map((e) => (e['points'] as num).toDouble()).reduce(math.max);
-    if (maxPts == 0) maxPts = 10000; // Default scale
-
+    double maxPts = trend.map((e) => (e['points'] as num).toDouble()).fold(100.0, math.max);
+    
     final List<Offset> points = [];
     for (int i = 0; i < trend.length; i++) {
-      double x = (size.width / (trend.length - 1)) * i;
-      double y = size.height - ((trend[i]['points'] as num).toDouble() / maxPts) * size.height * 0.8;
-      // Clamp y to prevent overflow but keep it inside
-      y = y.clamp(size.height * 0.1, size.height * 0.9);
+      double x = (trend.length > 1) ? (size.width / (trend.length - 1)) * i : size.width / 2;
+      double val = (trend[i]['points'] as num).toDouble();
+      double y = size.height - (val / maxPts) * size.height * 0.7 - (size.height * 0.15);
       points.add(Offset(x, y));
     }
 
-    path.moveTo(points[0].dx, points[0].dy);
-    fillPath.moveTo(0, size.height);
-    fillPath.lineTo(points[0].dx, points[0].dy);
+    if (points.length > 1) {
+      path.moveTo(points[0].dx, points[0].dy);
+      fillPath.moveTo(0, size.height);
+      fillPath.lineTo(points[0].dx, points[0].dy);
 
-    for (int i = 0; i < points.length - 1; i++) {
-      final p0 = points[i];
-      final p1 = points[i + 1];
-      final controlPoint1 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p0.dy);
-      final controlPoint2 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p1.dy);
-      path.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p1.dx, p1.dy);
-      fillPath.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p1.dx, p1.dy);
+      for (int i = 0; i < points.length - 1; i++) {
+        final p0 = points[i];
+        final p1 = points[i + 1];
+        final controlPoint1 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p0.dy);
+        final controlPoint2 = Offset(p0.dx + (p1.dx - p0.dx) / 2, p1.dy);
+        path.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p1.dx, p1.dy);
+        fillPath.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p1.dx, p1.dy);
+      }
+
+      fillPath.lineTo(size.width, size.height);
+      fillPath.close();
+
+      canvas.drawPath(fillPath, fillPaint);
+      canvas.drawPath(path, paint);
+      
+      // Draw end point glow
+      canvas.drawCircle(points.last, 6, Paint()..color = kAmber.withOpacity(0.3));
+      canvas.drawCircle(points.last, 3, Paint()..color = kAmber);
+    } else if (points.length == 1) {
+      canvas.drawCircle(points[0], 4, paint);
     }
-
-    fillPath.lineTo(size.width, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paint);
-
-    canvas.drawCircle(points.last, 4, Paint()..color = kAmber);
   }
 
   @override
