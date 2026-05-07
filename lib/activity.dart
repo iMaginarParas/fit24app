@@ -445,12 +445,14 @@ class _AP extends ConsumerState<ActivityPage> with SingleTickerProviderStateMixi
       }
     }
 
-    // Add background steps if walking is selected
+    // Background steps are excluded per user request to focus on session-specific data
+    /*
     if (_selectedType == ActivityType.walking) {
       filteredSteps += dailySteps;
       filteredDist += (dailySteps * 0.75); // rough estimate
       filteredCal += (dailySteps ~/ 20);
     }
+    */
 
     double totalDistKm = filteredDist / 1000.0;
     int totalCal = filteredCal;
