@@ -6,6 +6,7 @@ import 'shell.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
+import 'package:share_plus/share_plus.dart';
 
 class MyNetworkPage extends ConsumerStatefulWidget {
   const MyNetworkPage({super.key});
@@ -31,7 +32,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     final api = ref.read(apiServiceProvider);
     try {
       final p = await api.getProfile();
-      if (mounted) setState(() => _referralCode = p['referral_code'] ?? 'FIT24USER');
+      if (mounted) setState(() => _referralCode = p['referral_code'] ?? '');
     } catch (_) {}
   }
 
@@ -55,13 +56,18 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     }
   }
 
+  void _shareInvite() {
+    if (_referralCode.isEmpty) return;
+    final message = 'Join me on Fit24! Use my referral code: ${_referralCode.toUpperCase()} to get started. Download now: https://fit24.app';
+    Share.share(message);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E11), // Deep Fintech Black
+      backgroundColor: const Color(0xFF0B0E11),
       body: Stack(
         children: [
-          // Ambient Background Glows
           Positioned(
             top: -100, right: -50,
             child: _glow(kTeal.withOpacity(0.08), 300),
@@ -78,7 +84,6 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           else
             _buildDashboard(context),
 
-          // Back Button
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.only(left: 10, top: 10),
@@ -104,6 +109,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
   Widget _buildDashboard(BuildContext context) {
     final summary = _networkData!['summary'];
     final levels = _networkData!['levels'] as List;
+    final trend = summary['earnings_trend'] as List? ?? [];
 
     return RefreshIndicator(
       onRefresh: _fetchNetwork,
@@ -114,25 +120,14 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         slivers: [
           const SliverToBoxAdapter(child: SizedBox(height: 60)),
           
-          // Header Section
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text('Referral Network', 
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: kAmber.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('FIT PRO', style: TextStyle(color: kAmber, fontSize: 10, fontWeight: FontWeight.w900)),
-                      ),
-                    ],
-                  ),
+                  const Text('Referral Network', 
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
                   const SizedBox(height: 8),
                   Text('Invite friends. Earn forever. Get points from up to 10 levels of your network.',
                     style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14, fontWeight: FontWeight.w500)),
@@ -141,20 +136,17 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ),
           ),
 
-          // Referral Link Section
           SliverToBoxAdapter(child: _buildReferralSection()),
 
-          // Stats Grid
           SliverToBoxAdapter(child: _buildStatsGrid(summary)),
 
-          // Earnings Graph & Network Visualization Row
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 3, child: _buildEarningsChart(summary)),
+                  Expanded(flex: 3, child: _buildEarningsChart(trend)),
                   const SizedBox(width: 16),
                   Expanded(flex: 2, child: _buildNetworkMap(levels)),
                 ],
@@ -162,7 +154,6 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ),
           ),
 
-          // Top Referrals (Level 1 - Direct)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
@@ -170,7 +161,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Level 1 (Direct)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('View All', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
+                  Text('${levels.isNotEmpty ? (levels[0]['users'] as List).length : 0} Members', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -192,7 +183,6 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             ),
           ),
 
-          // Other Levels (2-10)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 12),
@@ -206,7 +196,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  if (index == 0) return const SizedBox(); // Skip level 1 in the list if already shown
+                  if (index == 0) return const SizedBox();
                   if (index >= levels.length) return null;
                   return _buildLevelDepthTile(levels[index]);
                 },
@@ -236,12 +226,12 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
             child: Row(
               children: [
                 Text('Code: ', style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(_referralCode, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
+                Text(_referralCode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () {
-                    Clipboard.setData(ClipboardData(text: _referralCode));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard!')));
+                    Clipboard.setData(ClipboardData(text: _referralCode.toUpperCase()));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard!'), behavior: SnackBarBehavior.floating));
                   },
                   child: const Icon(Icons.copy_rounded, color: kTeal, size: 18),
                 ),
@@ -250,19 +240,22 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           ),
         ),
         const SizedBox(width: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: kGreenGrad,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.share_rounded, color: Colors.black, size: 18),
-              SizedBox(width: 8),
-              Text('Invite Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
-            ],
+        GestureDetector(
+          onTap: _shareInvite,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: kGreenGrad,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.share_rounded, color: Colors.black, size: 18),
+                SizedBox(width: 8),
+                Text('Invite Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
+              ],
+            ),
           ),
         ),
       ],
@@ -271,23 +264,24 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
 
   Widget _buildStatsGrid(Map<String, dynamic> summary) {
     final fmt = NumberFormat.compact();
+    final totalPoints = summary['total_points'] ?? (summary['direct_points'] + summary['indirect_points']);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
           Row(
             children: [
-              Expanded(child: _premiumStatCard('Total Referrals', summary['total_users'].toString(), kAmber, Icons.people_outline_rounded, '+12 this week')),
+              Expanded(child: _premiumStatCard('Total Referrals', summary['total_users'].toString(), kAmber, Icons.people_outline_rounded)),
               const SizedBox(width: 16),
-              Expanded(child: _premiumStatCard('Active Users', (summary['total_users'] * 0.8).toInt().toString(), kTeal, Icons.flash_on_rounded, '80% of total')),
+              Expanded(child: _premiumStatCard('Network Points', fmt.format(totalPoints), kGreen, Icons.stars_rounded)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _premiumStatCard('Total Earned', fmt.format(summary['direct_points'] + summary['indirect_points']), kGreen, Icons.account_balance_wallet_outlined, '+${fmt.format(2400)} this week')),
+              Expanded(child: _premiumStatCard('Direct (L1)', fmt.format(summary['direct_points']), kTeal, Icons.person_add_alt_1_rounded)),
               const SizedBox(width: 16),
-              Expanded(child: _premiumStatCard('Max Level', 'Level 10', kBlue, Icons.military_tech_rounded, 'Earn up to 10%')),
+              Expanded(child: _premiumStatCard('Indirect (L2-10)', fmt.format(summary['indirect_points']), kBlue, Icons.account_tree_rounded)),
             ],
           ),
         ],
@@ -295,7 +289,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     );
   }
 
-  Widget _premiumStatCard(String label, String value, Color color, IconData icon, String delta) => Container(
+  Widget _premiumStatCard(String label, String value, Color color, IconData icon) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: const Color(0xFF13171D),
@@ -305,16 +299,10 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            Text(delta, style: TextStyle(color: color.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.w700)),
-          ],
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 18),
         ),
         const SizedBox(height: 16),
         Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
@@ -324,7 +312,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     ),
   );
 
-  Widget _buildEarningsChart(Map<String, dynamic> summary) => Container(
+  Widget _buildEarningsChart(List<dynamic> trend) => Container(
     height: 220,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
@@ -335,36 +323,20 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Earnings Overview', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
-                Text('Points growth over time', style: TextStyle(color: Colors.white24, fontSize: 10)),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(8)),
-              child: const Row(children: [
-                Text('This Week', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w700)),
-                Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white38, size: 14),
-              ]),
-            ),
-          ],
-        ),
+        const Text('Growth Trend', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+        const Text('Daily referral points (Last 7 days)', style: TextStyle(color: Colors.white24, fontSize: 10)),
         const Spacer(),
         SizedBox(
           height: 100,
           width: double.infinity,
-          child: CustomPaint(painter: _SmoothLineChartPainter()),
+          child: CustomPaint(painter: _SmoothLineChartPainter(trend)),
         ),
         const Spacer(),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: ['13 May', '15 May', '17 May', '19 May'].map((d) => Text(d, style: TextStyle(color: Colors.white24, fontSize: 9))).toList(),
+          children: trend.isNotEmpty 
+            ? trend.map((e) => Text(DateFormat('d MMM').format(DateTime.parse(e['date'])), style: TextStyle(color: Colors.white24, fontSize: 8))).toList()
+            : [Text('No data', style: TextStyle(color: Colors.white24, fontSize: 8))],
         ),
       ],
     ),
@@ -381,7 +353,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Network Map', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+        const Text('Structure', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
         const SizedBox(height: 20),
         Expanded(child: _buildMapVisual(levels)),
         const SizedBox(height: 10),
@@ -405,7 +377,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _mapNode('You', Colors.white, isMe: true),
+          _mapNode('YOU', Colors.white, isMe: true),
           _connector(),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -427,9 +399,8 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: color.withOpacity(isMe ? 1 : 0.4), width: 1.5),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10)],
         ),
-        child: Center(child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900))),
+        child: Center(child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900))),
       ),
       if (sub != null) ...[
         const SizedBox(height: 4),
@@ -469,8 +440,8 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
           const Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('+2,400 pts', style: TextStyle(color: kGreen, fontSize: 13, fontWeight: FontWeight.w900)),
-              Text('Active', style: TextStyle(color: kGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+              Text('+10k pts', style: TextStyle(color: kGreen, fontSize: 13, fontWeight: FontWeight.w900)),
+              Text('DIRECT', style: TextStyle(color: kGreen, fontSize: 10, fontWeight: FontWeight.bold)),
             ],
           ),
         ],
@@ -511,8 +482,13 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
 }
 
 class _SmoothLineChartPainter extends CustomPainter {
+  final List<dynamic> trend;
+  _SmoothLineChartPainter(this.trend);
+
   @override
   void paint(Canvas canvas, Size size) {
+    if (trend.isEmpty) return;
+
     final paint = Paint()
       ..color = kAmber
       ..style = PaintingStyle.stroke
@@ -529,15 +505,18 @@ class _SmoothLineChartPainter extends CustomPainter {
     final path = Path();
     final fillPath = Path();
 
-    // Smoother curve points
-    final points = [
-      Offset(0, size.height * 0.8),
-      Offset(size.width * 0.2, size.height * 0.6),
-      Offset(size.width * 0.4, size.height * 0.7),
-      Offset(size.width * 0.6, size.height * 0.3),
-      Offset(size.width * 0.8, size.height * 0.4),
-      Offset(size.width, size.height * 0.1),
-    ];
+    // Map trend to points
+    double maxPts = trend.map((e) => (e['points'] as num).toDouble()).reduce(math.max);
+    if (maxPts == 0) maxPts = 10000; // Default scale
+
+    final List<Offset> points = [];
+    for (int i = 0; i < trend.length; i++) {
+      double x = (size.width / (trend.length - 1)) * i;
+      double y = size.height - ((trend[i]['points'] as num).toDouble() / maxPts) * size.height * 0.8;
+      // Clamp y to prevent overflow but keep it inside
+      y = y.clamp(size.height * 0.1, size.height * 0.9);
+      points.add(Offset(x, y));
+    }
 
     path.moveTo(points[0].dx, points[0].dy);
     fillPath.moveTo(0, size.height);
@@ -558,11 +537,9 @@ class _SmoothLineChartPainter extends CustomPainter {
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
 
-    // Draw dot at the end
     canvas.drawCircle(points.last, 4, Paint()..color = kAmber);
-    canvas.drawCircle(points.last, 8, Paint()..color = kAmber.withOpacity(0.2));
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
