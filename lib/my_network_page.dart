@@ -119,7 +119,7 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(child: SizedBox(height: 60)),
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
           
           SliverToBoxAdapter(
             child: Padding(
@@ -127,35 +127,39 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Referral Network', 
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                  const Text('My Network', 
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
                   const SizedBox(height: 8),
-                  Text('Invite friends. Earn forever. Get points from up to 10 levels of your network.',
+                  Text('Manage your direct and indirect team growth.',
                     style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
           ),
 
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
           SliverToBoxAdapter(child: _buildReferralSection()),
 
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
           SliverToBoxAdapter(child: _buildStatsGrid(summary)),
 
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: _buildEarningsChart(trend),
             ),
           ),
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Direct Referrals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('${levels.isNotEmpty ? (levels[0]['users'] as List).length : 0} People', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
+                  const Text('Direct Referrals', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text('${levels.isNotEmpty ? (levels[0]['users'] as List).length : 0} People', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w800)),
                 ],
               ),
             ),
@@ -199,12 +203,13 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 12),
+              padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Indirect Referrals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('${summary['total_users'] - (levels.isNotEmpty ? (levels[0]['users'] as List).length : 0)} People', style: TextStyle(fontSize: 12, color: kBlue, fontWeight: FontWeight.w700)),
+                  const Text('Indirect Referrals', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text('${summary['total_users'] - (levels.isNotEmpty ? (levels[0]['users'] as List).length : 0)} People', style: TextStyle(fontSize: 12, color: kBlue, fontWeight: FontWeight.w800)),
                 ],
               ),
             ),
