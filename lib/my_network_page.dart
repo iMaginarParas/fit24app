@@ -49,16 +49,23 @@ class _MyNetworkPageState extends ConsumerState<MyNetworkPage> {
       backgroundColor: kBg,
       body: Stack(
         children: [
-          // Background Gradient
+          // Background Gradient & Styled Map Pattern
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [kBg, Color(0xFF1A1F25)],
+                  colors: [kBg, Color(0xFF13171D)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
               ),
+            ),
+          ),
+          
+          // Cyber Network Grid Overlay
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _NetworkGridPainter(),
             ),
           ),
           
@@ -308,4 +315,60 @@ class _LevelExpansionTileState extends State<_LevelExpansionTile> {
       trailing: const Icon(Icons.verified_user_rounded, color: kGreen, size: 16),
     );
   }
+}
+
+class _NetworkGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.04)
+      ..strokeWidth = 0.5;
+
+    const spacing = 35.0;
+
+    // Draw vertical lines
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+
+    // Draw horizontal lines
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+
+    // Add some "Nodes" and connections to match Map/Network vibe
+    final nodePaint = Paint()
+      ..color = kTeal.withOpacity(0.06)
+      ..style = PaintingStyle.fill;
+
+    final linePaint = Paint()
+      ..color = kTeal.withOpacity(0.04)
+      ..strokeWidth = 1.2;
+
+    // Random-looking but fixed nodes for aesthetic
+    final nodes = [
+      Offset(size.width * 0.1, size.height * 0.15),
+      Offset(size.width * 0.8, size.height * 0.2),
+      Offset(size.width * 0.3, size.height * 0.45),
+      Offset(size.width * 0.7, size.height * 0.65),
+      Offset(size.width * 0.2, size.height * 0.85),
+      Offset(size.width * 0.9, size.height * 0.9),
+    ];
+
+    for (int i = 0; i < nodes.length; i++) {
+      canvas.drawCircle(nodes[i], 4, nodePaint);
+      canvas.drawCircle(nodes[i], 12, nodePaint..color = kTeal.withOpacity(0.02));
+      
+      // Connect nodes in a "web" fashion
+      if (i < nodes.length - 1) {
+        canvas.drawLine(nodes[i], nodes[i+1], linePaint);
+      }
+      if (i > 2) {
+        canvas.drawLine(nodes[i], nodes[i-2], linePaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
