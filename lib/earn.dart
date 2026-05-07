@@ -402,9 +402,9 @@ class _EP extends ConsumerState<EarnPage> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text('${NumberFormat('#,###').format(points)} pts', style: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
-          Text('today', style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3))),
+          Text('\$${NumberFormat('#,###').format(points)} pts', style: const TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+          Text('today', style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w700)),
         ],
       ),
     ],
