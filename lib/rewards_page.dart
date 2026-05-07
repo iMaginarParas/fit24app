@@ -29,76 +29,75 @@ class RewardsPage extends ConsumerStatefulWidget {
 }
 
 class _RewardsPageState extends ConsumerState<RewardsPage> {
-  final List<RewardItem> _rewards = [
     RewardItem(
-      title: 'Smart Fitness Bands',
-      points: 50000,
-      image: 'assets/images/fitness_band.png',
-      category: 'Tech',
-      color: kTeal,
-    ),
-    RewardItem(
-      title: 'FIT24 Official Kit',
-      points: 25000,
-      image: 'assets/images/fit24_kit.png',
-      category: 'Merchandise',
+      title: 'FIT24 Energy Drink',
+      points: 100000,
+      image: 'assets/images/energy_drink.png',
+      category: 'Lifestyle',
       color: kGreen,
     ),
     RewardItem(
-      title: 'Massage Gun Pro',
-      points: 80000,
-      image: 'assets/images/massage_gun.png',
-      category: 'Recovery',
-      color: kPurple,
-    ),
-    RewardItem(
-      title: 'Pro Running Shoes',
-      points: 60000,
-      image: 'assets/images/running_shoes.png',
-      category: 'Fitness',
-      color: kBlue,
-    ),
-    RewardItem(
-      title: 'Sports Earbuds',
-      points: 40000,
-      image: 'assets/images/sports_earbuds.png',
-      category: 'Audio',
-      color: kCoral,
-    ),
-    RewardItem(
-      title: 'Adjustable Dumbbells',
-      points: 120000,
-      image: 'assets/images/adjustable_dumbbells.png',
-      category: 'Equipment',
-      color: kAmber,
-    ),
-    RewardItem(
-      title: 'Smart Bottle',
-      points: 15000,
-      image: 'assets/images/smart_bottle.png',
-      category: 'Hydration',
-      color: kTeal,
-    ),
-    RewardItem(
-      title: 'Yoga Mat Premium',
-      points: 10000,
-      image: 'assets/images/yoga_mat.png',
-      category: 'Wellness',
-      color: kPink,
-    ),
-    RewardItem(
       title: 'Foam Roller Pro',
-      points: 8000,
+      points: 120000,
       image: 'assets/images/foam_roller.png',
       category: 'Recovery',
       color: kGreen,
     ),
     RewardItem(
-      title: 'FIT24 Energy Drink',
-      points: 3000,
-      image: 'assets/images/energy_drink.png',
-      category: 'Lifestyle',
+      title: 'Yoga Mat Premium',
+      points: 150000,
+      image: 'assets/images/yoga_mat.png',
+      category: 'Wellness',
+      color: kPink,
+    ),
+    RewardItem(
+      title: 'Smart Bottle',
+      points: 200000,
+      image: 'assets/images/smart_bottle.png',
+      category: 'Hydration',
+      color: kTeal,
+    ),
+    RewardItem(
+      title: 'FIT24 Official Kit',
+      points: 250000,
+      image: 'assets/images/fit24_kit.png',
+      category: 'Merchandise',
       color: kGreen,
+    ),
+    RewardItem(
+      title: 'Sports Earbuds',
+      points: 400000,
+      image: 'assets/images/sports_earbuds.png',
+      category: 'Audio',
+      color: kCoral,
+    ),
+    RewardItem(
+      title: 'Smart Fitness Bands',
+      points: 500000,
+      image: 'assets/images/fitness_band.png',
+      category: 'Tech',
+      color: kTeal,
+    ),
+    RewardItem(
+      title: 'Pro Running Shoes',
+      points: 600000,
+      image: 'assets/images/running_shoes.png',
+      category: 'Fitness',
+      color: kBlue,
+    ),
+    RewardItem(
+      title: 'Massage Gun Pro',
+      points: 800000,
+      image: 'assets/images/massage_gun.png',
+      category: 'Recovery',
+      color: kPurple,
+    ),
+    RewardItem(
+      title: 'Adjustable Dumbbells',
+      points: 1200000,
+      image: 'assets/images/adjustable_dumbbells.png',
+      category: 'Equipment',
+      color: kAmber,
     ),
   ];
 
@@ -338,15 +337,24 @@ class _RewardsPageState extends ConsumerState<RewardsPage> {
                         ],
                       ),
                       GestureDetector(
-                        onTap: () => _handleRedeem(item, canAfford),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: const Text('Redemption coming soon in the next update!'),
+                            backgroundColor: kTeal,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ));
+                        },
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
-                            color: canAfford ? kGreen : Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white10),
                           ),
-                          child: Icon(canAfford ? Icons.shopping_cart_rounded : Icons.lock_outline_rounded, 
-                            size: 16, color: canAfford ? Colors.black : Colors.white24),
+                          child: const Text('COMING SOON', style: TextStyle(
+                            fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white24, letterSpacing: 0.5
+                          )),
                         ),
                       ),
                     ],
