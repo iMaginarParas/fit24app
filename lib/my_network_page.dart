@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:share_plus/share_plus.dart';
+import 'refer_and_earn_page.dart';
 
 class MyNetworkPage extends ConsumerStatefulWidget {
   const MyNetworkPage({super.key});
