@@ -556,11 +556,11 @@ class _EP extends ConsumerState<EarnPage> {
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        _redeemCard('assets/images/reward_coffee.png', 'Coffee', '10,000', kAmber, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
-        _redeemCard('assets/images/reward_gaming.png', 'Game Credits', '25,000', kPurple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
-        _redeemCard('assets/images/reward_cash.png', 'Cash Out', '50,000', kGreen, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawPage()))),
-        _redeemCard('assets/images/reward_gift.png', 'Gift Card', '40,000', kCoral, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
-        _redeemCard('assets/images/reward_shoes.png', 'Shoes', '100,000', kBlue, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/fitness_band.png', 'Fitness Band', '50,000', kTeal, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/smart_bottle.png', 'Smart Bottle', '15,000', kGreen, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/fit24_kit.png', 'Official Kit', '25,000', kBlue, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/starbucks_voucher.png', 'Coffee Voucher', '5,000', kAmber, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
+        _redeemCard('assets/images/massage_gun.png', 'Massage Gun', '80,000', kPurple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsPage()))),
       ],
     ),
   );
