@@ -94,11 +94,11 @@ class _RewardsPageState extends ConsumerState<RewardsPage> {
       color: kGreen,
     ),
     RewardItem(
-      title: 'Couple Coffee Voucher',
-      points: 5000,
-      image: 'assets/images/starbucks_voucher.png',
+      title: 'FIT24 Energy Drink',
+      points: 3000,
+      image: 'assets/images/energy_drink.png',
       category: 'Lifestyle',
-      color: kAmber,
+      color: kGreen,
     ),
   ];
 
