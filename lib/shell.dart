@@ -52,8 +52,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _requestPermissionsOnce());
   }
 
-  /// Requests ALL app permissions exactly once after login, in the
-  /// correct Android-required order.
   Future<void> _requestPermissionsOnce() async {
     final prefs = await SharedPreferences.getInstance();
     final alreadyAsked = prefs.getBool('permissions_requested') ?? false;
@@ -74,7 +72,40 @@ class _AppShellState extends ConsumerState<AppShell> {
     final locationGranted =
         results[Permission.location] == PermissionStatus.granted;
     if (locationGranted) {
-      await Permission.locationAlways.request();
+      final bgStatus = await Permission.locationAlways.status;
+      if (!bgStatus.isGranted && mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: kSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Background Location Required', 
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            content: const Text(
+              'FIT24 collects location data to enable fitness tracking and accurately record your walks and runs, even when the app is closed or not in use. This allows you to earn rewards for your physical activity throughout the day.',
+              style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Decline', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kGreen,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Accept', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        );
+        if (proceed == true) {
+          await Permission.locationAlways.request();
+        }
+      }
     }
 
     // ── Step 3: Health Connect ────────────────────────────────────────────────
