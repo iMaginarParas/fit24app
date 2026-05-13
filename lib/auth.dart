@@ -83,7 +83,9 @@ class _AuthGateState extends ConsumerState<AuthGate> {
         setState(() => _route = hasProfile ? _Route.home : _Route.onboarding);
         return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Fallback: If network fails here, we still try to show the home or auth based on token
+    }
 
     if (!mounted) return;
     setState(() => _route = _Route.home);
@@ -312,7 +314,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
         phone: b['user']['phone'],
       );
     } catch (e) {
-      _err('Google Sign-In failed: ${e.toString()}');
+      _err(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

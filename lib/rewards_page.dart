@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'shell.dart';
 import 'points_provider.dart';
+import 'utils.dart';
 
 class RewardItem {
   final String title;
@@ -29,80 +30,81 @@ class RewardsPage extends ConsumerStatefulWidget {
 }
 
 class _RewardsPageState extends ConsumerState<RewardsPage> {
+  final List<RewardItem> _rewards = [
     RewardItem(
-      title: 'FIT24 Energy Drink',
+      title: 'Mystery Box',
+      points: 50000,
+      image: 'assets/images/mystery_box.png',
+      category: 'Exclusive',
+      color: kPurple,
+    ),
+    RewardItem(
+      title: 'Master Box',
       points: 100000,
-      image: 'assets/images/energy_drink.png',
-      category: 'Lifestyle',
-      color: kGreen,
+      image: 'assets/images/master_box.png',
+      category: 'Exclusive',
+      color: kAmber,
     ),
     RewardItem(
-      title: 'Foam Roller Pro',
-      points: 120000,
-      image: 'assets/images/foam_roller.png',
-      category: 'Recovery',
-      color: kGreen,
+      title: 'Legend Box',
+      points: 250000,
+      image: 'assets/images/legend_box.png',
+      category: 'Exclusive',
+      color: kBlue,
     ),
     RewardItem(
-      title: 'Yoga Mat Premium',
-      points: 150000,
+      title: 'Yoga Mat',
+      points: 500000,
       image: 'assets/images/yoga_mat.png',
-      category: 'Wellness',
+      category: 'Fitness',
       color: kPink,
     ),
     RewardItem(
-      title: 'Smart Bottle',
-      points: 200000,
+      title: 'Fit24 Smart Bottle',
+      points: 750000,
       image: 'assets/images/smart_bottle.png',
-      category: 'Hydration',
+      category: 'Fitness',
       color: kTeal,
     ),
     RewardItem(
-      title: 'FIT24 Official Kit',
-      points: 250000,
-      image: 'assets/images/fit24_kit.png',
-      category: 'Merchandise',
-      color: kGreen,
-    ),
-    RewardItem(
-      title: 'Sports Earbuds',
-      points: 400000,
-      image: 'assets/images/sports_earbuds.png',
-      category: 'Audio',
+      title: 'Starbucks Couple Voucher',
+      points: 1000000,
+      image: 'assets/images/starbucks_voucher.png',
+      category: 'Lifestyle',
       color: kCoral,
     ),
     RewardItem(
-      title: 'Smart Fitness Bands',
-      points: 500000,
-      image: 'assets/images/fitness_band.png',
-      category: 'Tech',
-      color: kTeal,
+      title: 'Running Shoes',
+      points: 2500000,
+      image: 'assets/images/running_shoes.png',
+      category: 'Fitness',
+      color: kGreen,
     ),
     RewardItem(
-      title: 'Pro Running Shoes',
-      points: 600000,
-      image: 'assets/images/running_shoes.png',
+      title: 'Fit24 Kit',
+      points: 5000000,
+      image: 'assets/images/fit24_kit.png',
+      category: 'Fitness',
+      color: kPurple,
+    ),
+    RewardItem(
+      title: 'Fitness Band',
+      points: 7500000,
+      image: 'assets/images/fitness_band.png',
       category: 'Fitness',
       color: kBlue,
     ),
     RewardItem(
-      title: 'Massage Gun Pro',
-      points: 800000,
-      image: 'assets/images/massage_gun.png',
-      category: 'Recovery',
-      color: kPurple,
-    ),
-    RewardItem(
-      title: 'Adjustable Dumbbells',
-      points: 1200000,
-      image: 'assets/images/adjustable_dumbbells.png',
-      category: 'Equipment',
+      title: 'Bicycle',
+      points: 10000000,
+      image: 'assets/images/bicycle.png',
+      category: 'Premium',
       color: kAmber,
     ),
   ];
 
   String _selectedCategory = 'All';
-  final List<String> _categories = ['All', 'Tech', 'Fitness', 'Recovery', 'Merchandise', 'Lifestyle'];
+  final List<String> _categories = ['All', 'Exclusive', 'Fitness', 'Lifestyle', 'Premium'];
 
   @override
   Widget build(BuildContext context) {
@@ -194,15 +196,15 @@ class _RewardsPageState extends ConsumerState<RewardsPage> {
                     border: Border.all(color: kAmber.withOpacity(0.3)),
                     boxShadow: [BoxShadow(color: kAmber.withOpacity(0.05), blurRadius: 10)],
                   ),
-                  child: Row(
-                    children: [
-                      const Text('⚡', style: TextStyle(fontSize: 16)),
-                      const SizedBox(width: 8),
-                      Text(NumberFormat('#,###').format(points), style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white
-                      )),
-                    ],
-                  ),
+                    child: Row(
+                      children: [
+                        const Text('💰', style: TextStyle(fontSize: 20)),
+                        const SizedBox(width: 8),
+                        Text(formatPoints(points), style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white
+                        )),
+                      ],
+                    ),
                 ),
               ],
             ),
@@ -331,8 +333,14 @@ class _RewardsPageState extends ConsumerState<RewardsPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${NumberFormat('#,###').format(item.points)}', 
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                          Row(
+                            children: [
+                              const Text('💰', style: TextStyle(fontSize: 16)),
+                              const SizedBox(width: 4),
+                              Text(formatPoints(item.points), 
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                            ],
+                          ),
                           const Text('POINTS', style: TextStyle(fontSize: 8, color: Colors.white38, fontWeight: FontWeight.w700)),
                         ],
                       ),
@@ -403,9 +411,16 @@ class _RewardsPageState extends ConsumerState<RewardsPage> {
               fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white
             )),
             const SizedBox(height: 8),
-            Text('This will deduct ${NumberFormat('#,###').format(item.points)} points from your wallet.', 
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.5))),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('💰', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Text('This will deduct ${formatPoints(item.points)} points from your wallet.', 
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.5))),
+              ],
+            ),
             const SizedBox(height: 32),
             GreenBtn('CONFIRM REDEMPTION', onTap: () {
               Navigator.pop(ctx);

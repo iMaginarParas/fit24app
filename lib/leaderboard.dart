@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'api_service.dart';
 import 'shell.dart';
 import 'dart:ui' as ui;
+import 'utils.dart';
 
 class LeaderboardPage extends ConsumerStatefulWidget {
   const LeaderboardPage({super.key});
@@ -298,13 +299,19 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
                 Text('${e['city'] ?? 'Active Member'} • ${NumberFormat('#,###').format(steps)} steps', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.w500)),
               ])),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: isMe ? kGreen : Colors.white.withOpacity(0.05), 
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: isMe ? [BoxShadow(color: kGreen.withOpacity(0.3), blurRadius: 10)] : null,
                 ),
-                child: Text('+${e['fit_points']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isMe ? Colors.black : kGreen)),
+                child: Row(
+                  children: [
+                    const Text('💰', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Text('+${formatPoints(e['fit_points'])}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isMe ? Colors.black : kGreen)),
+                  ],
+                ),
               ),
             ]),
           ),
@@ -342,7 +349,13 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
               const Text('YOU', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black)),
               Text('${NumberFormat('#,###').format(me['steps'])} steps', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w700)),
             ])),
-            Text('${me['fit_points']} pts', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.black)),
+            Row(
+              children: [
+                const Text('💰', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 6),
+                Text('${formatPoints(me['fit_points'])} pts', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.black)),
+              ],
+            ),
           ]),
         ),
       ),

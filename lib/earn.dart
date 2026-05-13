@@ -11,6 +11,7 @@ import 'step_provider.dart';
 import 'activity.dart';
 import 'spin_wheel_page.dart';
 import 'withdraw_page.dart';
+import 'utils.dart';
 class EarnPage extends ConsumerStatefulWidget {
   const EarnPage({super.key});
   @override
@@ -197,14 +198,21 @@ class _EP extends ConsumerState<EarnPage> {
                Text('FIT24', style: TextStyle(
                   fontSize: 10, color: Colors.white.withOpacity(0.5),
                   letterSpacing: 2, fontWeight: FontWeight.w700)),
-              Text('\$${NumberFormat('#,###').format(points)}', style: const TextStyle(
-                  fontSize: 36, fontWeight: FontWeight.w900,
-                  color: Colors.white, letterSpacing: -1.5, height: 1.1)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text('💰', style: TextStyle(fontSize: 32)),
+                  const SizedBox(width: 8),
+                  Text(formatPoints(points), style: const TextStyle(
+                      fontSize: 36, fontWeight: FontWeight.w900,
+                      color: Colors.white, letterSpacing: -1.5, height: 1.1)),
+                ],
+              ),
             ]),
             const Spacer(),
             // Mini circle stat
              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              _smallBadge('+${NumberFormat('#,###').format(liveSteps)}', kGreen, 'today'),
+              _smallBadge('+${formatPoints(liveSteps)}', kGreen, 'today'),
               const SizedBox(height: 6),
               _smallBadge('+0', kAmber, 'bonus'),
             ]),
@@ -402,8 +410,14 @@ class _EP extends ConsumerState<EarnPage> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text('\$${NumberFormat('#,###').format(points)} pts', style: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+          Row(
+            children: [
+              const Text('💰', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text('${formatPoints(points)} pts', style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+            ],
+          ),
           Text('today', style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.w700)),
         ],
       ),

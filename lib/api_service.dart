@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_state.dart';
 
-const kBaseUrl = 'https://fit24bc-production.up.railway.app';
+String kBaseUrl = 'https://api.fit24.global';
+const String kFallbackUrl = 'https://fit24bc-production.up.railway.app';
 
 class ApiService {
   final String token;
@@ -18,16 +20,37 @@ class ApiService {
     };
   }
 
+  // Wrapper to automatically handle network errors and fallback URL
+  Future<http.Response> _safeCall(Future<http.Response> Function() call) async {
+    try {
+      return await call();
+    } on SocketException catch (_) {
+      if (kBaseUrl != kFallbackUrl) {
+        kBaseUrl = kFallbackUrl;
+        try {
+          return await call();
+        } catch (_) {
+          throw Exception('Network issue detected. Please check your connection and try again.');
+        }
+      }
+      throw Exception('Network issue detected. Please check your connection and try again.');
+    } on http.ClientException catch (_) {
+      throw Exception('Network connection failed. Please check your internet connection.');
+    } catch (e) {
+      throw Exception('An unexpected error occurred. Please try again.');
+    }
+  }
+
   // Wrapper for all authenticated requests to handle token expiration (401)
   Future<http.Response> _req(Future<http.Response> Function(Map<String, String> headers) call) async {
-    var res = await call(_headers);
+    var res = await _safeCall(() => call(_headers));
     if (res.statusCode == 401) {
       final auth = ref.read(authProvider).valueOrNull;
       if (auth != null && auth.refreshToken.isNotEmpty) {
         try {
-          final refreshRes = await http.post(
+          final refreshRes = await _safeCall(() => http.post(
             Uri.parse('$kBaseUrl/auth/refresh-token?refresh_token=${auth.refreshToken}'),
-          );
+          ));
           if (refreshRes.statusCode == 200) {
             final data = jsonDecode(refreshRes.body);
             await ref.read(authProvider.notifier).signIn(
@@ -37,7 +60,7 @@ class ApiService {
               phone: auth.phone,
             );
             // Retry with NEW headers (which will now have the new token)
-            return await call(_headers);
+            return await _safeCall(() => call(_headers));
           }
         } catch (_) {}
       }
@@ -53,11 +76,11 @@ class ApiService {
     if (phone != null) body['phone'] = phone;
     if (email != null) body['email'] = email;
 
-    final res = await http.post(
+    final res = await _safeCall(() => http.post(
       Uri.parse('$kBaseUrl/auth/send-otp'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
-    );
+    ));
     if (res.statusCode != 200) throw Exception('Failed to send OTP: ${res.body}');
     return jsonDecode(res.body);
   }
@@ -70,29 +93,44 @@ class ApiService {
     if (phone != null) body['phone'] = phone;
     if (email != null) body['email'] = email;
 
-    final res = await http.post(
+    final res = await _safeCall(() => http.post(
       Uri.parse('$kBaseUrl/auth/verify-otp'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
-    );
+    ));
     if (res.statusCode != 200) throw Exception('Failed to verify OTP: ${res.body}');
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> signInWithGoogle(String idToken) async {
-    final res = await http.post(
+    final res = await _safeCall(() => http.post(
       Uri.parse('$kBaseUrl/auth/google'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'id_token': idToken}),
-    );
-    if (res.statusCode != 200) throw Exception('Failed to sign in with Google: ${res.body}');
+    ));
+    
+    if (res.statusCode != 200) {
+      String msg = 'Failed to sign in with Google';
+      try {
+        final err = jsonDecode(res.body);
+        final detail = err['detail'];
+        if (detail != null) {
+          if (detail.toString().contains('Unacceptable audience')) {
+            msg = 'Configuration Error: This Google Client ID is not allowed by the backend. Please check Supabase Provider settings.';
+          } else {
+            msg = detail.toString();
+          }
+        }
+      } catch (_) {}
+      throw Exception(msg);
+    }
     return jsonDecode(res.body);
   }
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final res = await http.post(
+    final res = await _safeCall(() => http.post(
       Uri.parse('$kBaseUrl/auth/refresh-token?refresh_token=$refreshToken'),
-    );
+    ));
     if (res.statusCode != 200) throw Exception('Failed to refresh token');
     return jsonDecode(res.body);
   }
@@ -207,15 +245,24 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> uploadAvatar(String filePath) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$kBaseUrl/profile/me/avatar'));
-    request.headers.addAll({'Authorization': 'Bearer $token'});
-    request.files.add(await http.MultipartFile.fromPath('file', filePath));
-    
-    final streamedRes = await request.send();
-    final res = await http.Response.fromStream(streamedRes);
-    
-    if (res.statusCode != 200) throw Exception('Failed to upload avatar: ${res.body}');
-    return jsonDecode(res.body);
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse('$kBaseUrl/profile/me/avatar'));
+      request.headers.addAll({'Authorization': 'Bearer $token'});
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      
+      final streamedRes = await request.send();
+      final res = await http.Response.fromStream(streamedRes);
+      
+      if (res.statusCode != 200) throw Exception('Failed to upload avatar: ${res.body}');
+      return jsonDecode(res.body);
+    } on SocketException catch (_) {
+      throw Exception('Network issue detected. Please check your connection and try again.');
+    } on http.ClientException catch (_) {
+      throw Exception('Network connection failed. Please check your internet connection.');
+    } catch (e) {
+      if (e.toString().contains('Failed to upload')) rethrow;
+      throw Exception('An unexpected error occurred. Please try again.');
+    }
   }
 
   Future<void> deleteAccount() async {

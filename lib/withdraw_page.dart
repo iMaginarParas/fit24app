@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'shell.dart';
 import 'points_provider.dart';
+import 'utils.dart';
 
 class WithdrawPage extends ConsumerStatefulWidget {
   const WithdrawPage({super.key});
@@ -163,8 +164,14 @@ class _WithdrawPageState extends ConsumerState<WithdrawPage> {
             Text('Available Balance', style: TextStyle(
                 fontSize: 13, color: Colors.white.withOpacity(0.5), fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            Text('${NumberFormat('#,###').format(points)} pts', style: const TextStyle(
-                fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
+            Row(
+              children: [
+                const Text('💰', style: TextStyle(fontSize: 28)),
+                const SizedBox(width: 8),
+                Text('${formatPoints(points)} pts', style: const TextStyle(
+                    fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
+              ],
+            ),
             Text('≈ ₹${(points * _conversionRate).toStringAsFixed(2)} INR', style: const TextStyle(
                 fontSize: 13, fontWeight: FontWeight.w700, color: kGreen)),
           ],

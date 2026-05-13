@@ -22,6 +22,7 @@ import 'step_provider.dart';
 import 'activity.dart';
 import 'notifications_page.dart';
 import 'notifications_provider.dart';
+import 'utils.dart';
 
 const _method = MethodChannel('com.fit24app/steps');
 const _events = EventChannel('com.fit24app/steps_stream');
@@ -536,7 +537,9 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
         ),
         child: Row(children: [
-          Text('\$${NumberFormat.compact().format(pts)}',
+          const Text('💰', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 6),
+          Text(formatPoints(pts),
               style: const TextStyle(
                   fontSize: 14, color: Colors.white, fontWeight: FontWeight.w900)),
           const SizedBox(width: 5),
@@ -994,10 +997,17 @@ class _HS extends ConsumerState<HomePage> with TickerProviderStateMixin {
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Fit24', style: TextStyle(
                   fontSize: 12, color: Colors.white.withOpacity(0.7))),
-              Text('\$${NumberFormat('#,###').format(pts)}',
-                  style: const TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.w900,
-                      color: Colors.white, letterSpacing: -1)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text('💰', style: TextStyle(fontSize: 32)),
+                  const SizedBox(width: 8),
+                  Text(formatPoints(pts),
+                      style: const TextStyle(
+                          fontSize: 32, fontWeight: FontWeight.w900,
+                          color: Colors.white, letterSpacing: -1)),
+                ],
+              ),
             ]),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

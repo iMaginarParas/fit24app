@@ -12,6 +12,7 @@ import 'auth_state.dart';
 import 'health_service.dart';
 import 'onboarding.dart';
 import 'points_provider.dart';
+import 'utils.dart';
 import 'profile_stats_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'shell.dart';
@@ -436,9 +437,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         loading: () => const Center(child: CircularProgressIndicator(color: kTeal, strokeWidth: 2)),
         error: (_, __) => const SizedBox(),
         data: (_) => Row(children: [
-          Expanded(child: _minimalStat(NumberFormat.compact().format(stats.totalSteps), 'Steps', kTeal)),
+          Expanded(child: _minimalStat(formatPoints(stats.totalSteps), 'Steps', kTeal)),
           const SizedBox(width: 12),
-          Expanded(child: _minimalStat(NumberFormat.compact().format(stats.totalPoints), 'Points', kAmber)),
+          Expanded(child: _minimalStat(formatPoints(stats.totalPoints), 'Points', kAmber)),
           const SizedBox(width: 12),
           Expanded(child: _minimalStat(stats.totalSessions.toString(), 'Sessions', kBlue)),
         ]),
